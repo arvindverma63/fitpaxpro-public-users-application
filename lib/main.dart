@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/home_screen.dart';
 import 'theme/app_colors.dart';
+import 'screens/main_screen.dart';
+
 
 void main() {
   // Match status bar to the dark theme
@@ -44,7 +46,7 @@ class GymFinderApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const HomeScreen(),
+      home: const MainScreen(),
     );
   }
 }

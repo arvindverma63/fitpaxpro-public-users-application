@@ -1,14 +1,24 @@
 import 'dart:convert';
+import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;import '../models/banner_model.dart';
 
 import '../models/category_model.dart';
 import '../models/gym_model.dart';
 import '../models/plan_model.dart';
+import '../models/video_model.dart';
+import '../models/comment_model.dart';
 
 class ApiService {
   // Set up the Base URL
   static const String baseUrl = 'https://chocolate-viper-895188.hostingersite.com/api/user-app';
-
+// Helper to build headers with an optional token
+  Map<String, String> _headers([String? token]) {
+    return {
+      'Content-Type': 'application/json',
+      'accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
   Future<List<Gym>> fetchGyms() async {
     final url = Uri.parse('$baseUrl/gyms');
 
@@ -83,72 +93,114 @@ class ApiService {
     }
   }
 
-  Future<bool> sendOtp(String name, String email, String phone) async {
+  Future<dynamic> sendOtp(String name, String email, String phone) async {
     final url = Uri.parse('$baseUrl/registration/step-1');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'name': name,
+          'email': email,
+          'phone': phone
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+
+        // Return the 'data' portion so the UI can see 'otp_preview'
+        if (responseData['success'] == true) {
+          return responseData['data'];
+        }
+      }
+
+      // If we reach here, something went wrong with the data logic
+      return null;
+    } catch (e) {
+      debugPrint('Step 1 Network Error: $e');
+      return null;
+    }
+  }
+// Now returns String (the token) instead of bool
+  Future<String?> verifyOtp(String email, String otp) async {
+    final url = Uri.parse('$baseUrl/registration/verify-otp');
+    try {
+      final response = await http.post(
+        url,
+        headers: _headers(),
+        body: jsonEncode({'email': email, 'otp': otp}),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        // Extract the token from your specific API structure
+        // Usually it's data['data']['token'] or data['token']
+        return data['data']['token']?.toString();
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Verify OTP Error: $e');
+      return null;
+    }
+  }
+
+  // --- UPDATED STEP 2 ---
+  Future<bool> submitPhysicalAttributes(Map<String, dynamic> data, String token) async {
+    final url = Uri.parse('$baseUrl/registration/step-2');
     final response = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'name': name,
-        'email': email,
-        'phone': phone
-      }),
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      print('OTP Preview: ${data['data']['otp_preview']}'); // Keep for debugging
-      return true;
-    }
-    throw Exception('Failed to send OTP. Please check your details.');
-  }
-
-  Future<bool> verifyOtp(String email, String otp) async {
-    final url = Uri.parse('$baseUrl/registration/verify-otp');
-    final response = await http.post(url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'otp': otp}),
-    );
-    return response.statusCode == 200;
-  }
-
-  Future<bool> submitPhysicalAttributes(Map<String, dynamic> data) async {
-    final url = Uri.parse('$baseUrl/registration/step-2');
-    final response = await http.post(url,
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers(token), // Pass the token here
       body: jsonEncode(data),
     );
     return response.statusCode == 200;
   }
 
-  Future<bool> submitGoalsAndLifestyle(Map<String, dynamic> data) async {
+  // --- UPDATED STEP 3 ---
+  Future<bool> submitGoalsAndLifestyle(Map<String, dynamic> data, String token) async {
     final url = Uri.parse('$baseUrl/registration/step-3');
-    final response = await http.post(url,
-      headers: {'Content-Type': 'application/json'},
+    final response = await http.post(
+      url,
+      headers: _headers(token),
       body: jsonEncode(data),
     );
     return response.statusCode == 200;
   }
 
-  Future<bool> submitMedicalIntel(Map<String, dynamic> data) async {
+  // --- UPDATED STEP 4 ---
+  Future<bool> submitMedicalIntel(Map<String, dynamic> data, String token) async {
     final url = Uri.parse('$baseUrl/registration/step-4');
-    final response = await http.post(url,
-      headers: {'Content-Type': 'application/json'},
+    final response = await http.post(
+      url,
+      headers: _headers(token),
       body: jsonEncode(data),
     );
     return response.statusCode == 200;
   }
 
-  Future<bool> submitVisualAssets(String? imagePath, bool isPublic) async {
+  // --- UPDATED STEP 5 ---
+  Future<bool> submitVisualAssets(String? imagePath, bool isPublic, String token) async {
     final url = Uri.parse('$baseUrl/registration/step-5');
     var request = http.MultipartRequest('POST', url);
-    request.fields['is_public'] = isPublic.toString();
+
+    // Add Authorization header to multipart request
+    request.headers.addAll({
+      'Authorization': 'Bearer $token',
+      'accept': 'application/json',
+    });
+
+    request.fields['is_public'] = isPublic ? "1" : "0";
 
     if (imagePath != null && imagePath.isNotEmpty) {
       request.files.add(await http.MultipartFile.fromPath('profile_image', imagePath));
     }
 
-    final response = await request.send();
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
     return response.statusCode == 200;
   }
 
@@ -174,24 +226,6 @@ class ApiService {
     }
   }
 
-  // // 1. Fetch All Gyms (Paginated response)
-  // Future<List<Gym>> fetchGyms() async {
-  //   final url = Uri.parse('$baseUrl/gyms');
-  //   try {
-  //     final response = await http.get(url, headers: {'accept': '*/*'});
-  //     if (response.statusCode == 200) {
-  //       final Map<String, dynamic> jsonResponse = jsonDecode(response.body);
-  //       if (jsonResponse['success'] == true) {
-  //         // Notice: data -> data (because of pagination)
-  //         final List<dynamic> data = jsonResponse['data']['data'];
-  //         return data.map((json) => Gym.fromJson(json)).toList();
-  //       }
-  //     }
-  //     throw Exception('Failed to load gyms');
-  //   } catch (e) {
-  //     throw Exception('Network error: $e');
-  //   }
-  // }
 
   // 2. Fetch Featured Gyms (Direct array response)
   Future<List<Gym>> fetchFeaturedGyms() async {
@@ -254,4 +288,90 @@ class ApiService {
       throw Exception('Network error: $e');
     }
   }
+
+  Future<List<GymVideo>> fetchGymVideos(String gymId) async {
+    final url = Uri.parse('$baseUrl/gym/videos?gym_id=$gymId');
+    try {
+      final response = await http.get(url, headers: {'accept': 'application/json'});
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        final List<dynamic> data = jsonResponse['data'] ?? [];
+        return data.map((json) => GymVideo.fromJson(json)).toList();
+      }
+      throw Exception('Failed to load videos');
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
+  Future<bool> toggleLike(String mediaId) async {
+    final url = Uri.parse('$baseUrl/gym/interaction/like');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'likeable_id': mediaId,
+          'likeable_type': 'media' // or 'video', depending on your backend enum
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Like error: $e');
+      return false;
+    }
+  }
+
+  Future<List<VideoComment>> fetchComments(String mediaId) async {
+    final url = Uri.parse('$baseUrl/gym/interaction/comments?commentable_id=$mediaId&commentable_type=media');
+    try {
+      final response = await http.get(url, headers: {'accept': 'application/json'});
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        final List<dynamic> data = jsonResponse['data'] ?? [];
+        return data.map((json) => VideoComment.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Comment fetch error: $e');
+      return [];
+    }
+  }
+
+  Future<bool> addComment(String mediaId, String content) async {
+    final url = Uri.parse('$baseUrl/gym/interaction/comment');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'commentable_id': mediaId,
+          'commentable_type': 'media',
+          'content': content
+        }),
+      );
+      return response.statusCode == 201 || response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Add comment error: $e');
+      return false;
+    }
+  }
+
+  // Fetch ALL videos globally for the video feed
+  Future<List<GymVideo>> fetchAllVideos() async {
+    final url = Uri.parse('$baseUrl/gym/videos'); // No gym_id filter
+    try {
+      final response = await http.get(url, headers: {'accept': 'application/json'});
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        final List<dynamic> data = jsonResponse['data'] ?? [];
+        return data.map((json) => GymVideo.fromJson(json)).toList();
+      }
+      throw Exception('Failed to load all videos');
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
+
 }

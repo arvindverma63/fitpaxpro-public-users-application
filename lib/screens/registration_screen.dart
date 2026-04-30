@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
-import 'home_screen.dart'; // To navigate after success
+import 'home_screen.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -17,11 +17,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   int _currentStep = 0;
   bool _isLoading = false;
   bool _otpSent = false;
+  String? _authToken; // Stores the Bearer token after OTP verification
 
   // Form Data State
-  String name = '';     // <-- Add this
+  String name = '';
   String email = '';
-  String phone = '';    // <-- Add this
+  String phone = '';
   String otp = '';
   String gender = 'male';
   String dob = '1995-05-15';
@@ -35,7 +36,49 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   String medicalConditions = 'None';
   String allergies = 'None';
   bool isPublic = true;
-  String? profileImagePath; // Requires image_picker to populate
+  String? profileImagePath;
+
+  // --- ACTIONS ---
+
+  void _showToast(String message, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  Future<void> _handleSendOtp({bool isResend = false}) async {
+    if (name.isEmpty || email.isEmpty || phone.isEmpty) {
+      _showToast("Please fill in all identity fields");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      // Note: Updated service to return dynamic to capture otp_preview
+      final response = await _apiService.sendOtp(name, email, phone);
+      if (response != null) {
+        setState(() => _otpSent = true);
+        String msg = isResend ? "OTP Resent!" : "OTP Sent Successfully.";
+
+        if (response is Map) {
+          final Map resMap = response; // Flutter now knows this is a Map
+          if (resMap.containsKey('otp_preview')) {
+            msg += " (TEST OTP: ${resMap['otp_preview']})";
+          }
+        }
+        _showToast(msg, isError: false);
+      }
+    } catch (e) {
+      _showToast("Error: $e");
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   void _nextStep() async {
     setState(() => _isLoading = true);
@@ -43,44 +86,58 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     try {
       bool success = false;
 
+      // STEP 0: IDENTITY & OTP VERIFICATION
       if (_currentStep == 0) {
         if (!_otpSent) {
-          // Basic validation
-          if (name.isEmpty || email.isEmpty || phone.isEmpty) {
-            throw Exception('Please fill in all fields.');
-          }
-          // Updated API Call
-          success = await _apiService.sendOtp(name, email, phone);
-          if (success) setState(() => _otpSent = true);
-          success = false;
+          await _handleSendOtp();
+          return; // Stay on page to enter OTP
         } else {
-          success = await _apiService.verifyOtp(email, otp);
+          if (otp.isEmpty) throw "Please enter the 6-digit OTP";
+          final token = await _apiService.verifyOtp(email, otp);
+          if (token != null) {
+            _authToken = token; // Captured token for next authenticated steps
+            success = true;
+          } else {
+            throw "Invalid OTP. Please try again.";
+          }
         }
       }
-      // ... keep the rest of your _nextStep logic exactly the same
+      // STEP 1: PHYSICAL ATTRIBUTES (Authenticated)
       else if (_currentStep == 1) {
+        if (height.isEmpty || weight.isEmpty) throw "Please enter height and weight";
         success = await _apiService.submitPhysicalAttributes({
-          "gender": gender, "date_of_birth": dob, "height": double.tryParse(height) ?? 170.0,
-          "current_weight": double.tryParse(weight) ?? 70.0, "target_weight": double.tryParse(targetWeight) ?? 65.0,
+          "gender": gender,
+          "date_of_birth": dob,
+          "height": double.tryParse(height) ?? 170.0,
+          "current_weight": double.tryParse(weight) ?? 70.0,
+          "target_weight": double.tryParse(targetWeight) ?? 65.0,
           "blood_group": bloodGroup
-        });
+        }, _authToken!);
       }
+      // STEP 2: GOALS & LIFESTYLE (Authenticated)
       else if (_currentStep == 2) {
         success = await _apiService.submitGoalsAndLifestyle({
-          "fitness_level": fitnessLevel, "goal_type": goalType, "activity_level": "moderately_active",
-          "diet_type": dietType, "workout_frequency_goal": 4, "preferred_workout_time": "morning"
-        });
+          "fitness_level": fitnessLevel,
+          "goal_type": goalType,
+          "activity_level": "moderately_active",
+          "diet_type": dietType,
+          "workout_frequency_goal": 4,
+          "preferred_workout_time": "morning"
+        }, _authToken!);
       }
+      // STEP 3: MEDICAL INTEL (Authenticated)
       else if (_currentStep == 3) {
         success = await _apiService.submitMedicalIntel({
-          "medical_conditions": medicalConditions, "allergies": allergies, "physical_limitations": "None"
-        });
+          "medical_conditions": medicalConditions,
+          "allergies": allergies,
+          "physical_limitations": "None"
+        }, _authToken!);
       }
+      // STEP 4: VISUAL ASSETS (Authenticated)
       else if (_currentStep == 4) {
-        success = await _apiService.submitVisualAssets(profileImagePath, isPublic);
+        success = await _apiService.submitVisualAssets(profileImagePath, isPublic, _authToken!);
         if (success) {
           if (!mounted) return;
-          // Registration Complete! Go to Home Screen
           Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (route) => false);
           return;
         }
@@ -90,13 +147,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic);
         setState(() {
           _currentStep++;
-          _otpSent = false; // Reset for next interactions if any
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e', style: const TextStyle(color: Colors.white)), backgroundColor: Colors.redAccent));
+      _showToast(e.toString());
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -125,7 +181,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             Expanded(
               child: PageView(
                 controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(), // Prevent manual swiping without passing validation
+                physics: const NeverScrollableScrollPhysics(),
                 children: [
                   _buildStep1Identity(),
                   _buildStep2Physical(),
@@ -142,264 +198,32 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     );
   }
 
-  // --- UI COMPONENTS ---
-
-  Widget _buildProgressBar() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (index) {
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          height: 6,
-          width: _currentStep >= index ? 24 : 12,
-          decoration: BoxDecoration(
-            color: _currentStep >= index ? AppColors.primaryLight : Colors.white24,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _buildBottomActionBar() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: AppColors.cardBg,
-        border: Border(top: BorderSide(color: Colors.white10)),
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 56,
-        child: ElevatedButton(
-          onPressed: _isLoading ? null : _nextStep,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          ),
-          child: _isLoading
-              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : Text(
-            _currentStep == 4 ? 'Complete Registration' : (_otpSent ? 'Verify OTP' : 'Continue'),
-            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // --- WIZARD PAGES ---
-
-  Widget _buildStep1Identity() {
-    return _buildStepWrapper(
-      title: 'Verify Identity',
-      subtitle: 'Enter your personal details to secure your account.',
-      child: Column(
-        children: [
-          _buildTextField(
-              'Full Name',
-              Icons.person_rounded,
-                  (v) => name = v,
-              enabled: !_otpSent
-          ),
-          const SizedBox(height: 16),
-          _buildTextField(
-              'Email Address',
-              Icons.email_rounded,
-                  (v) => email = v,
-              enabled: !_otpSent,
-              keyboardType: TextInputType.emailAddress
-          ),
-          const SizedBox(height: 16),
-          _buildTextField(
-              'Phone Number',
-              Icons.phone_rounded,
-                  (v) => phone = v,
-              enabled: !_otpSent,
-              keyboardType: TextInputType.phone
-          ),
-
-          if (_otpSent) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Divider(color: Colors.white10, height: 1),
-            ),
-            _buildTextField(
-                'Enter 6-Digit OTP',
-                Icons.password_rounded,
-                    (v) => otp = v,
-                keyboardType: TextInputType.number
-            ),
-            const SizedBox(height: 12),
-            const Row(
-              children: [
-                Icon(Icons.check_circle_rounded, color: AppColors.primaryLight, size: 16),
-                SizedBox(width: 8),
-                Text('An OTP has been sent to your email.', style: TextStyle(color: AppColors.primaryLight, fontSize: 13)),
-              ],
-            ),
-          ]
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStep2Physical() {
-    return _buildStepWrapper(
-      title: 'Physical Attributes',
-      subtitle: 'Help us customize your fitness journey.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Gender', style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: _buildChoiceChip('Male', gender == 'male', () => setState(() => gender = 'male'))),
-              const SizedBox(width: 12),
-              Expanded(child: _buildChoiceChip('Female', gender == 'female', () => setState(() => gender = 'female'))),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(child: _buildTextField('Height (cm)', Icons.height_rounded, (v) => height = v, keyboardType: TextInputType.number)),
-              const SizedBox(width: 16),
-              Expanded(child: _buildTextField('Weight (kg)', Icons.monitor_weight_rounded, (v) => weight = v, keyboardType: TextInputType.number)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          _buildTextField('Target Weight (kg)', Icons.track_changes_rounded, (v) => targetWeight = v, keyboardType: TextInputType.number),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStep3Goals() {
-    return _buildStepWrapper(
-      title: 'Goals & Lifestyle',
-      subtitle: 'What are you looking to achieve?',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Primary Goal', style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _buildChoiceChip('Weight Loss', goalType == 'weight_loss', () => setState(() => goalType = 'weight_loss')),
-              _buildChoiceChip('Muscle Gain', goalType == 'muscle_gain', () => setState(() => goalType = 'muscle_gain')),
-              _buildChoiceChip('Endurance', goalType == 'endurance', () => setState(() => goalType = 'endurance')),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const Text('Diet Preference', style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _buildChoiceChip('Vegetarian', dietType == 'veg', () => setState(() => dietType = 'veg')),
-              _buildChoiceChip('Non-Veg', dietType == 'non_veg', () => setState(() => dietType = 'non_veg')),
-              _buildChoiceChip('Vegan', dietType == 'vegan', () => setState(() => dietType = 'vegan')),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStep4Medical() {
-    return _buildStepWrapper(
-      title: 'Medical Intel',
-      subtitle: 'Safety first. Let trainers know of any issues.',
-      child: Column(
-        children: [
-          _buildTextField('Medical Conditions (e.g., Asthma, BP)', Icons.medical_services_rounded, (v) => medicalConditions = v, maxLines: 2),
-          const SizedBox(height: 24),
-          _buildTextField('Allergies', Icons.warning_rounded, (v) => allergies = v),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStep5Profile() {
-    return _buildStepWrapper(
-      title: 'Profile Setup',
-      subtitle: 'Make your profile stand out.',
-      child: Column(
-        children: [
-          GestureDetector(
-            onTap: () {
-              // TODO: Implement image_picker logic here
-            },
-            child: Container(
-              height: 120,
-              width: 120,
-              decoration: BoxDecoration(
-                color: AppColors.cardBg,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.primaryLight, width: 2),
-              ),
-              child: const Icon(Icons.camera_alt_rounded, color: AppColors.textMuted, size: 40),
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Text('Upload Profile Photo', style: TextStyle(color: AppColors.primaryLight, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 40),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(16)),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Public Profile', style: TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold, fontSize: 16)),
-                    Text('Allow friends to find you', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                  ],
-                ),
-                Switch(
-                  value: isPublic,
-                  activeColor: AppColors.primaryLight,
-                  onChanged: (val) => setState(() => isPublic = val),
-                ),
-              ],
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  // --- REUSABLE WIDGETS ---
+  // --- UI BUILDING BLOCKS ---
 
   Widget _buildStepWrapper({required String title, required String subtitle, required Widget child}) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppColors.textMain, letterSpacing: -0.5)),
           const SizedBox(height: 8),
           Text(subtitle, style: const TextStyle(fontSize: 15, color: AppColors.textMuted)),
-          const SizedBox(height: 40),
+          const SizedBox(height: 35),
           child,
+          const SizedBox(height: 50),
         ],
       ),
     );
   }
 
-  Widget _buildTextField(String label, IconData icon, Function(String) onChanged, {int maxLines = 1, TextInputType? keyboardType, bool enabled = true}) {
+  Widget _buildTextField(String label, IconData icon, Function(String) onChanged, {TextInputType? keyboardType, bool enabled = true}) {
     return Container(
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
       child: TextField(
-        onChanged: onChanged,
-        maxLines: maxLines,
+        onChanged: (v) => setState(() => onChanged(v)),
         keyboardType: keyboardType,
         enabled: enabled,
         style: TextStyle(color: enabled ? AppColors.textMain : AppColors.textMuted),
@@ -415,21 +239,174 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
   Widget _buildChoiceChip(String label, bool isSelected, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.2) : AppColors.cardBg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isSelected ? AppColors.primaryLight : Colors.white10),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(color: isSelected ? AppColors.primaryLight : AppColors.textMain, fontWeight: FontWeight.bold, fontSize: 14),
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary.withOpacity(0.2) : AppColors.cardBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isSelected ? AppColors.primaryLight : Colors.white10),
           ),
+          child: Center(
+            child: Text(label, style: TextStyle(color: isSelected ? AppColors.primaryLight : AppColors.textMain, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- STEP PAGES ---
+
+  Widget _buildStep1Identity() {
+    return _buildStepWrapper(
+      title: 'Get Started',
+      subtitle: 'Create your account to start your fitness journey.',
+      child: Column(
+        children: [
+          _buildTextField('Full Name', Icons.person_outline, (v) => name = v, enabled: !_otpSent),
+          _buildTextField('Email Address', Icons.email_outlined, (v) => email = v, enabled: !_otpSent, keyboardType: TextInputType.emailAddress),
+          _buildTextField('Phone Number', Icons.phone_android, (v) => phone = v, enabled: !_otpSent, keyboardType: TextInputType.phone),
+          if (_otpSent) ...[
+            const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Divider(color: Colors.white10)),
+            _buildTextField('6-Digit OTP', Icons.lock_clock_outlined, (v) => otp = v, keyboardType: TextInputType.number),
+            TextButton(
+              onPressed: _isLoading ? null : () => _handleSendOtp(isResend: true),
+              child: const Text("Didn't receive code? Resend OTP", style: TextStyle(color: AppColors.primaryLight)),
+            ),
+          ]
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep2Physical() {
+    return _buildStepWrapper(
+      title: 'Body Stats',
+      subtitle: 'We use this to calculate your calories and progress.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Gender', style: TextStyle(color: AppColors.textMuted)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _buildChoiceChip('Male', gender == 'male', () => setState(() => gender = 'male')),
+              const SizedBox(width: 15),
+              _buildChoiceChip('Female', gender == 'female', () => setState(() => gender = 'female')),
+            ],
+          ),
+          const SizedBox(height: 25),
+          Row(
+            children: [
+              Expanded(child: _buildTextField('Height (cm)', Icons.height, (v) => height = v, keyboardType: TextInputType.number)),
+              const SizedBox(width: 15),
+              Expanded(child: _buildTextField('Weight (kg)', Icons.monitor_weight_outlined, (v) => weight = v, keyboardType: TextInputType.number)),
+            ],
+          ),
+          _buildTextField('Target Weight (kg)', Icons.track_changes, (v) => targetWeight = v, keyboardType: TextInputType.number),
+          const SizedBox(height: 15),
+          const Text('Blood Group', style: TextStyle(color: AppColors.textMuted)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
+            child: DropdownButton<String>(
+              value: bloodGroup,
+              isExpanded: true,
+              underline: const SizedBox(),
+              dropdownColor: AppColors.cardBg,
+              style: const TextStyle(color: Colors.white),
+              items: ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+              onChanged: (v) => setState(() => bloodGroup = v!),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep3Goals() => _buildStepWrapper(
+    title: 'Your Goals',
+    subtitle: 'What is your primary fitness objective?',
+    child: Column(
+      children: [
+        _buildChoiceChip('Weight Loss', goalType == 'weight_loss', () => setState(() => goalType = 'weight_loss')),
+        const SizedBox(height: 12),
+        _buildChoiceChip('Muscle Gain', goalType == 'muscle_gain', () => setState(() => goalType = 'muscle_gain')),
+        const SizedBox(height: 25),
+        const Align(alignment: Alignment.centerLeft, child: Text('Diet Preference', style: TextStyle(color: AppColors.textMuted))),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _buildChoiceChip('Veg', dietType == 'veg', () => setState(() => dietType = 'veg')),
+            const SizedBox(width: 10),
+            _buildChoiceChip('Non-Veg', dietType == 'non_veg', () => setState(() => dietType = 'non_veg')),
+          ],
+        )
+      ],
+    ),
+  );
+
+  Widget _buildStep4Medical() => _buildStepWrapper(
+    title: 'Medical Intel',
+    subtitle: 'Safety is our priority. Any conditions we should know?',
+    child: Column(
+      children: [
+        _buildTextField('Medical Conditions', Icons.medical_information_outlined, (v) => medicalConditions = v),
+        _buildTextField('Allergies', Icons.warning_amber_rounded, (v) => allergies = v),
+      ],
+    ),
+  );
+
+  Widget _buildStep5Profile() => _buildStepWrapper(
+    title: 'Almost Done',
+    subtitle: 'Upload a profile picture to complete your setup.',
+    child: Column(
+      children: [
+        const CircleAvatar(radius: 60, backgroundColor: AppColors.cardBg, child: Icon(Icons.camera_alt_outlined, size: 40, color: AppColors.textMuted)),
+        const SizedBox(height: 40),
+        SwitchListTile(
+          title: const Text('Public Profile', style: TextStyle(color: Colors.white)),
+          subtitle: const Text('Allow others to see your progress', style: TextStyle(color: AppColors.textMuted)),
+          value: isPublic,
+          activeColor: AppColors.primaryLight,
+          onChanged: (v) => setState(() => isPublic = v),
+        )
+      ],
+    ),
+  );
+
+  Widget _buildProgressBar() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          height: 6,
+          width: _currentStep >= index ? 24 : 12,
+          decoration: BoxDecoration(color: _currentStep >= index ? AppColors.primaryLight : Colors.white24, borderRadius: BorderRadius.circular(4)),
+        );
+      }),
+    );
+  }
+
+  Widget _buildBottomActionBar() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: const BoxDecoration(color: AppColors.cardBg, border: Border(top: BorderSide(color: Colors.white10))),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: _isLoading ? null : _nextStep,
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+          child: _isLoading
+              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : Text(_currentStep == 4 ? 'Complete Registration' : (_otpSent ? 'Verify OTP' : 'Continue'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         ),
       ),
     );

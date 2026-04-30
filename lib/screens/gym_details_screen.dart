@@ -4,6 +4,8 @@ import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/gym/GymGalleryCarousel.dart';
 import '../widgets/pricing_bottom_sheet.dart';
+import 'gym_videos_screen.dart'; // Import the new screen
+
 
 class GymDetailsScreen extends StatefulWidget {
   final String gymId;
@@ -67,6 +69,17 @@ class _GymDetailsScreenState extends State<GymDetailsScreen> {
                               style: const TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.5),
                             ),
                             const SizedBox(height: 24),
+
+                            // NEW: Add the video section here!
+                            _buildVideosSection(gym),
+
+                            _buildContactAndInfoCard(gym),
+                            const SizedBox(height: 8),
+                            Text(
+                              gym.description,
+                              style: const TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.5),
+                            ),
+                            const SizedBox(height: 24),
                             _buildContactAndInfoCard(gym),
                             const SizedBox(height: 20), // Bottom scroll padding
                           ],
@@ -84,7 +97,78 @@ class _GymDetailsScreenState extends State<GymDetailsScreen> {
     );
   }
 
-  // --- UI COMPONENTS ---
+  // Inside gym_details_screen.dart
+
+  Widget _buildVideosSection(Gym gym) {
+    if (gym.youtubeLinks.isEmpty) return const SizedBox.shrink();
+
+    // Regex extraction for thumbnail
+    String? getYoutubeId(String url) {
+      final match = RegExp(r'.*(?:youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*').firstMatch(url);
+      return (match != null && match.groupCount >= 1) ? match.group(1) : null;
+    }
+
+    String? firstVideoId = getYoutubeId(gym.youtubeLinks.first);
+    String thumbnailUrl = firstVideoId != null
+        ? 'https://img.youtube.com/vi/$firstVideoId/hqdefault.jpg'
+        : 'https://via.placeholder.com/400x200';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Gym Tour & Videos'),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () {
+            // Update this routing to pass the Gym object!
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => GymVideosScreen(gym: gym), // Pass the whole gym
+              ),
+            );
+          },
+          child: Container(
+            height: 180,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white10),
+              image: DecorationImage(
+                image: NetworkImage(thumbnailUrl),
+                fit: BoxFit.cover,
+                colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.4), BlendMode.darken),
+              ),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                      boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.5), blurRadius: 10)],
+                    ),
+                    child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Watch ${gym.youtubeLinks.length} Video${gym.youtubeLinks.length > 1 ? 's' : ''}',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  )
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+
 
   Widget _buildGalleryHeader(Gym gym) {
     return SliverAppBar(
