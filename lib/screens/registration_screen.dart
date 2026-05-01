@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../services/api_service.dart';
+import '../services/ai_api_service.dart';
 import '../theme/app_colors.dart';
-import 'home_screen.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'main_screen.dart'; // <-- CHANGED: Import MainScreen instead of HomeScreen
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -17,7 +21,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   int _currentStep = 0;
   bool _isLoading = false;
   bool _otpSent = false;
-  String? _authToken; // Stores the Bearer token after OTP verification
+  String? _authToken;
 
   // Form Data State
   String name = '';
@@ -52,35 +56,60 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
   Future<void> _handleSendOtp({bool isResend = false}) async {
+    debugPrint("📱 [Registration] Action: Attempting to send OTP...");
+
     if (name.isEmpty || email.isEmpty || phone.isEmpty) {
+      debugPrint("⚠️ [Registration] Validation Failed: Identity fields are empty.");
       _showToast("Please fill in all identity fields");
       return;
     }
 
     setState(() => _isLoading = true);
     try {
-      // Note: Updated service to return dynamic to capture otp_preview
+      debugPrint("🌐 [API] Calling sendOtp for email: $email, phone: $phone");
       final response = await _apiService.sendOtp(name, email, phone);
+
       if (response != null) {
+        debugPrint("✅ [API] sendOtp Success.");
         setState(() => _otpSent = true);
         String msg = isResend ? "OTP Resent!" : "OTP Sent Successfully.";
 
         if (response is Map) {
-          final Map resMap = response; // Flutter now knows this is a Map
+          final Map resMap = response;
           if (resMap.containsKey('otp_preview')) {
             msg += " (TEST OTP: ${resMap['otp_preview']})";
+            debugPrint("🔑 [Registration] Test OTP Extracted: ${resMap['otp_preview']}");
           }
         }
         _showToast(msg, isError: false);
+      } else {
+        debugPrint("❌ [API] sendOtp returned null.");
       }
     } catch (e) {
+      debugPrint("🚨 [API] Error in sendOtp: $e");
       _showToast("Error: $e");
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
+  Future<void> _pickImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+      if (image != null) {
+        setState(() {
+          profileImagePath = image.path;
+        });
+      }
+    } catch (e) {
+      _showToast("Failed to pick image: $e");
+    }
+  }
+
   void _nextStep() async {
+    debugPrint("🔘 [Registration] Continue Button Clicked. Current Step: $_currentStep");
     setState(() => _isLoading = true);
 
     try {
@@ -89,20 +118,24 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       // STEP 0: IDENTITY & OTP VERIFICATION
       if (_currentStep == 0) {
         if (!_otpSent) {
+          debugPrint("📨 [Registration] OTP not sent yet. Routing to _handleSendOtp...");
           await _handleSendOtp();
-          return; // Stay on page to enter OTP
+          return;
         } else {
+          debugPrint("🔑 [Registration] Verifying OTP: $otp");
           if (otp.isEmpty) throw "Please enter the 6-digit OTP";
+
           final token = await _apiService.verifyOtp(email, otp);
           if (token != null) {
-            _authToken = token; // Captured token for next authenticated steps
+            _authToken = token;
             success = true;
+            debugPrint("✅ [API] OTP Verified! Auth Token stored: ${_authToken?.substring(0, 10)}...");
           } else {
             throw "Invalid OTP. Please try again.";
           }
         }
       }
-      // STEP 1: PHYSICAL ATTRIBUTES (Authenticated)
+      // STEP 1: PHYSICAL ATTRIBUTES
       else if (_currentStep == 1) {
         if (height.isEmpty || weight.isEmpty) throw "Please enter height and weight";
         success = await _apiService.submitPhysicalAttributes({
@@ -114,7 +147,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           "blood_group": bloodGroup
         }, _authToken!);
       }
-      // STEP 2: GOALS & LIFESTYLE (Authenticated)
+      // STEP 2: GOALS & LIFESTYLE
       else if (_currentStep == 2) {
         success = await _apiService.submitGoalsAndLifestyle({
           "fitness_level": fitnessLevel,
@@ -125,7 +158,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           "preferred_workout_time": "morning"
         }, _authToken!);
       }
-      // STEP 3: MEDICAL INTEL (Authenticated)
+      // STEP 3: MEDICAL INTEL
       else if (_currentStep == 3) {
         success = await _apiService.submitMedicalIntel({
           "medical_conditions": medicalConditions,
@@ -133,16 +166,41 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           "physical_limitations": "None"
         }, _authToken!);
       }
-      // STEP 4: VISUAL ASSETS (Authenticated)
+      // STEP 4: VISUAL ASSETS & AI SYNC
       else if (_currentStep == 4) {
         success = await _apiService.submitVisualAssets(profileImagePath, isPublic, _authToken!);
+
         if (success) {
+          // --- AI SYNC LOGIC ---
+          try {
+            final aiService = AiApiService();
+            await aiService.syncUserProfile(email, {
+              "gender": gender,
+              "goal": goalType,
+              "diet_type": dietType,
+              "weight": double.tryParse(weight),
+              "height": double.tryParse(height),
+              "medical_history": medicalConditions,
+            });
+            debugPrint("✅ [AI] Profile Synced Successfully");
+          } catch (e) {
+            debugPrint("⚠️ [AI] Sync Failed: $e");
+          }
+
+          debugPrint("🎉 [Registration] Complete! Navigating to MainScreen.");
           if (!mounted) return;
-          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (route) => false);
+
+          // <-- CHANGED: Route to MainScreen and pass the token!
+          Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => MainScreen(token: _authToken)),
+                  (route) => false
+          );
           return;
         }
       }
 
+      // Transition to next page if step succeeded
       if (success) {
         _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic);
         setState(() {
@@ -198,8 +256,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     );
   }
 
-  // --- UI BUILDING BLOCKS ---
-
+  // --- UI BUILDING BLOCKS (Unchanged) ---
   Widget _buildStepWrapper({required String title, required String subtitle, required Widget child}) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -239,27 +296,24 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
   Widget _buildChoiceChip(String label, bool isSelected, VoidCallback onTap) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary.withOpacity(0.2) : AppColors.cardBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSelected ? AppColors.primaryLight : Colors.white10),
-          ),
-          child: Center(
-            child: Text(label, style: TextStyle(color: isSelected ? AppColors.primaryLight : AppColors.textMain, fontWeight: FontWeight.bold)),
-          ),
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary.withOpacity(0.2) : AppColors.cardBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isSelected ? AppColors.primaryLight : Colors.white10),
+        ),
+        child: Center(
+          child: Text(label, style: TextStyle(color: isSelected ? AppColors.primaryLight : AppColors.textMain, fontWeight: FontWeight.bold)),
         ),
       ),
     );
   }
 
-  // --- STEP PAGES ---
-
+  // --- STEP PAGES (Unchanged) ---
   Widget _buildStep1Identity() {
     return _buildStepWrapper(
       title: 'Get Started',
@@ -293,9 +347,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              _buildChoiceChip('Male', gender == 'male', () => setState(() => gender = 'male')),
+              Expanded(child: _buildChoiceChip('Male', gender == 'male', () => setState(() => gender = 'male'))),
               const SizedBox(width: 15),
-              _buildChoiceChip('Female', gender == 'female', () => setState(() => gender = 'female')),
+              Expanded(child: _buildChoiceChip('Female', gender == 'female', () => setState(() => gender = 'female'))),
             ],
           ),
           const SizedBox(height: 25),
@@ -332,6 +386,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     title: 'Your Goals',
     subtitle: 'What is your primary fitness objective?',
     child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildChoiceChip('Weight Loss', goalType == 'weight_loss', () => setState(() => goalType = 'weight_loss')),
         const SizedBox(height: 12),
@@ -341,9 +396,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         const SizedBox(height: 12),
         Row(
           children: [
-            _buildChoiceChip('Veg', dietType == 'veg', () => setState(() => dietType = 'veg')),
+            Expanded(child: _buildChoiceChip('Veg', dietType == 'veg', () => setState(() => dietType = 'veg'))),
             const SizedBox(width: 10),
-            _buildChoiceChip('Non-Veg', dietType == 'non_veg', () => setState(() => dietType = 'non_veg')),
+            Expanded(child: _buildChoiceChip('Non-Veg', dietType == 'non_veg', () => setState(() => dietType = 'non_veg'))),
           ],
         )
       ],
@@ -366,7 +421,22 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     subtitle: 'Upload a profile picture to complete your setup.',
     child: Column(
       children: [
-        const CircleAvatar(radius: 60, backgroundColor: AppColors.cardBg, child: Icon(Icons.camera_alt_outlined, size: 40, color: AppColors.textMuted)),
+        GestureDetector(
+          onTap: _pickImage,
+          child: CircleAvatar(
+            radius: 60,
+            backgroundColor: AppColors.cardBg,
+            backgroundImage: profileImagePath != null ? FileImage(File(profileImagePath!)) : null,
+            child: profileImagePath == null
+                ? const Icon(Icons.camera_alt_outlined, size: 40, color: AppColors.textMuted)
+                : null,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+            profileImagePath != null ? 'Tap to change photo' : 'Upload Profile Photo',
+            style: const TextStyle(color: AppColors.primaryLight, fontSize: 12)
+        ),
         const SizedBox(height: 40),
         SwitchListTile(
           title: const Text('Public Profile', style: TextStyle(color: Colors.white)),
@@ -406,7 +476,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
           child: _isLoading
               ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : Text(_currentStep == 4 ? 'Complete Registration' : (_otpSent ? 'Verify OTP' : 'Continue'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          // <-- CHANGED: Fixed the button text logic so it says 'Continue' correctly on steps 1-3!
+              : Text(
+              _currentStep == 0
+                  ? (_otpSent ? 'Verify OTP' : 'Continue')
+                  : (_currentStep == 4 ? 'Complete Registration' : 'Continue'),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+          ),
         ),
       ),
     );

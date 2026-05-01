@@ -2,29 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
 import '../models/gym_model.dart';
 import '../models/banner_model.dart';
 import '../models/category_model.dart';
 import '../services/api_service.dart';
 import '../widgets/gym_card.dart';
-import '../widgets/custom_bottom_nav.dart';
 import '../widgets/animated_login_prompt.dart';
 import '../theme/app_colors.dart';
 import 'login_screen.dart';
 import 'gym_details_screen.dart';
-import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String? token; // <-- ADDED: Accepts token to fetch profile
+
+  const HomeScreen({super.key, this.token});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 0;
   final ApiService _apiService = ApiService();
+
+  // PROFILE STATE
+  String _firstName = '';
+  String? _profileImageUrl;
+  bool _isLoadingProfile = true;
+
+  // Dynamically check if user is logged in based on token presence
+  bool get _isLoggedIn => widget.token != null && widget.token!.isNotEmpty;
 
   // ALL DYNAMIC FUTURES
   late Future<List<PromoBanner>> _futureBanners;
@@ -32,7 +40,6 @@ class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Gym>> _futureFeaturedGyms;
   late Future<List<Gym>> _futureAllGyms;
 
-  final bool _isLoggedIn = false;
   String _currentLocation = 'Fetching location...';
   bool _isLoadingLocation = true;
 
@@ -41,11 +48,35 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _triggerInitialFetches();
     _determinePosition();
+
+    if (_isLoggedIn) {
+      _loadUserProfile();
+    } else {
+      _isLoadingProfile = false;
+    }
+  }
+
+  // --- FETCH USER PROFILE FROM API ---
+  Future<void> _loadUserProfile() async {
+    final userData = await _apiService.fetchUserProfile(widget.token!);
+
+    if (mounted && userData != null) {
+      setState(() {
+        String rawName = userData['first_name'] ?? '';
+        _firstName = rawName.isNotEmpty
+            ? '${rawName[0].toUpperCase()}${rawName.substring(1)}'
+            : 'User';
+
+        _profileImageUrl = userData['profile_image'];
+        _isLoadingProfile = false;
+      });
+    } else {
+      if (mounted) setState(() => _isLoadingProfile = false);
+    }
   }
 
   void _triggerInitialFetches() {
     _futureBanners = _apiService.fetchBanners();
-    // NOTE: If you haven't built the categories API yet, this will show an error on screen.
     _futureCategories = _apiService.fetchCategories();
     _futureFeaturedGyms = _apiService.fetchFeaturedGyms();
     _futureAllGyms = _apiService.fetchGyms();
@@ -56,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _triggerInitialFetches();
     });
     await _determinePosition();
+    if (_isLoggedIn) await _loadUserProfile();
   }
 
   Future<void> _determinePosition() async {
@@ -81,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       setState(() {
-        _currentLocation = 'Kanpur, UP'; // Fallback for your specific case if GPS fails
+        _currentLocation = 'Kanpur, UP'; // Fallback
         _isLoadingLocation = false;
       });
     }
@@ -105,21 +137,17 @@ class _HomeScreenState extends State<HomeScreen> {
               Padding(padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0), child: _buildSearchBar()),
               if (!_isLoggedIn) const Padding(padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0), child: AnimatedLoginPrompt()),
 
-              // --- 1. DYNAMIC BANNERS ---
               _buildBannersSection(),
               const SizedBox(height: 24),
 
-              // --- 2. DYNAMIC CATEGORIES ---
               _buildCategoriesSection(),
               const SizedBox(height: 24),
 
-              // --- 3. DYNAMIC TOP RATED / FEATURED ---
               Padding(padding: const EdgeInsets.symmetric(horizontal: 20.0), child: _buildSectionHeader('Top Rated Near You', showSeeAll: true)),
               const SizedBox(height: 16),
               _buildFeaturedGymsSection(),
               const SizedBox(height: 32),
 
-              // --- 4. DYNAMIC ALL GYMS ---
               Padding(padding: const EdgeInsets.symmetric(horizontal: 20.0), child: _buildSectionHeader('Explore All Gyms', showSeeAll: false)),
               const SizedBox(height: 16),
               _buildAllGymsSection(),
@@ -129,7 +157,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-
     );
   }
 
@@ -207,31 +234,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return FutureBuilder<List<GymCategory>>(
       future: _futureCategories,
       builder: (context, snapshot) {
-        // 1. Loading State
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-            height: 90,
-            child: Center(
-              child: CircularProgressIndicator(color: AppColors.primaryLight),
-            ),
-          );
-        }
-        // 2. Error State
-        else if (snapshot.hasError) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              "Categories Error: ${snapshot.error}",
-              style: TextStyle(color: AppColors.textMuted.withOpacity(0.5), fontSize: 12),
-            ),
-          );
-        }
-        // 3. Empty State
-        else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox(height: 90, child: Center(child: CircularProgressIndicator(color: AppColors.primaryLight)));
+        } else if (snapshot.hasError) {
+          return Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Text("Categories Error: ${snapshot.error}", style: TextStyle(color: AppColors.textMuted.withOpacity(0.5), fontSize: 12)));
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const SizedBox.shrink();
         }
 
-        // 4. Success State
         final categories = snapshot.data!;
         return SizedBox(
           height: 90,
@@ -242,14 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
             itemCount: categories.length,
             itemBuilder: (context, index) {
               final cat = categories[index];
-
-              // Clean the database string (e.g., "mdi mdi-dumbbell" -> "dumbbell")
-              String cleanIconName = cat.iconClass
-                  .replaceAll('mdi mdi-', '')
-                  .replaceAll('mdi-', '')
-                  .trim();
-
-              // Fetch the icon directly from the MDI package
+              String cleanIconName = cat.iconClass.replaceAll('mdi mdi-', '').replaceAll('mdi-', '').trim();
               IconData iconData = MdiIcons.fromString(cleanIconName) ?? Icons.category_rounded;
 
               return Padding(
@@ -257,29 +260,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   children: [
                     Container(
-                      height: 60,
-                      width: 60,
-                      decoration: BoxDecoration(
-                        color: AppColors.cardBg,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white10),
-                      ),
-                      // Render the dynamic MDI Icon
-                      child: Icon(
-                        iconData,
-                        color: AppColors.primaryLight,
-                        size: 28,
-                      ),
+                      height: 60, width: 60,
+                      decoration: BoxDecoration(color: AppColors.cardBg, shape: BoxShape.circle, border: Border.all(color: Colors.white10)),
+                      child: Icon(iconData, color: AppColors.primaryLight, size: 28),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      _capitalize(cat.name),
-                      style: const TextStyle(
-                        color: AppColors.textMain,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    Text(_capitalize(cat.name), style: const TextStyle(color: AppColors.textMain, fontSize: 12, fontWeight: FontWeight.w600)),
                   ],
                 ),
               );
@@ -290,11 +276,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Helper function (if you don't already have it in your class) to make names look nice
   String _capitalize(String text) {
     if (text.isEmpty) return text;
     return text.split(' ').map((word) => word.isEmpty ? word : word[0].toUpperCase() + word.substring(1).toLowerCase()).join(' ');
   }
+
   Widget _buildFeaturedGymsSection() {
     return FutureBuilder<List<Gym>>(
       future: _futureFeaturedGyms,
@@ -328,8 +314,7 @@ class _HomeScreenState extends State<HomeScreen> {
               return GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GymDetailsScreen(gymId: gym.id))),
                 child: Container(
-                  width: 240,
-                  margin: const EdgeInsets.only(right: 16),
+                  width: 240, margin: const EdgeInsets.only(right: 16),
                   decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white10)),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -383,10 +368,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         final gyms = snapshot.data!;
         return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          itemCount: gyms.length,
+          shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), padding: const EdgeInsets.symmetric(horizontal: 20.0), itemCount: gyms.length,
           itemBuilder: (context, index) {
             return GymCard(gym: gyms[index]);
           },
@@ -407,8 +389,8 @@ class _HomeScreenState extends State<HomeScreen> {
             decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _isLoggedIn ? AppColors.primaryLight.withOpacity(0.5) : Colors.white10, width: 2)),
             child: CircleAvatar(
               radius: 20, backgroundColor: AppColors.cardBg,
-              backgroundImage: _isLoggedIn ? const NetworkImage('https://via.placeholder.com/150/262626/FFFFFF/?text=A') : null,
-              child: !_isLoggedIn ? const Icon(Icons.person_outline_rounded, color: AppColors.textMuted) : null,
+              backgroundImage: _isLoggedIn && _profileImageUrl != null ? NetworkImage(_profileImageUrl!) : null,
+              child: (!_isLoggedIn || _profileImageUrl == null) ? const Icon(Icons.person_outline_rounded, color: AppColors.textMuted) : null,
             ),
           ),
           const SizedBox(width: 12),
@@ -416,7 +398,14 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(_isLoggedIn ? 'Good Morning, Arvind 👋' : 'Welcome, Guest User 👋', style: const TextStyle(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w500)),
+                Text(
+                    !_isLoggedIn
+                        ? 'Welcome, Guest User 👋'
+                        : _isLoadingProfile
+                        ? 'Loading profile...'
+                        : 'Good Morning, $_firstName 👋',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w500)
+                ),
                 const SizedBox(height: 2),
                 GestureDetector(
                   onTap: _determinePosition,

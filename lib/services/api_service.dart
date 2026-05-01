@@ -126,28 +126,58 @@ class ApiService {
       return null;
     }
   }
-// Now returns String (the token) instead of bool
+
+
+
   Future<String?> verifyOtp(String email, String otp) async {
+    // NOTE: Check if your Login verification uses a different URL (like /auth/verify-otp)
+    // Right now, this hits the registration endpoint.
     final url = Uri.parse('$baseUrl/registration/verify-otp');
+
+    debugPrint('🌐 [API] Verifying OTP for: $email | Code: $otp');
+
     try {
       final response = await http.post(
         url,
-        headers: _headers(),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        // Some servers expect OTP as an integer, some as a string.
+        // We send it as a string here. If the server throws a 422, we might need int.parse(otp)
         body: jsonEncode({'email': email, 'otp': otp}),
       );
 
-      if (response.statusCode == 200) {
+      debugPrint('🌐 [API] Verify OTP Status Code: ${response.statusCode}');
+      debugPrint('🌐 [API] Verify OTP Response Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final Map<String, dynamic> data = jsonDecode(response.body);
-        // Extract the token from your specific API structure
-        // Usually it's data['data']['token'] or data['token']
-        return data['data']['token']?.toString();
+
+        // Check for success safely
+        if (data['success'] == true || data['success'] == 'true') {
+          // Try getting token from root first, then fallback to data['token'] just in case
+          final String? token = data['token']?.toString() ?? data['data']?['token']?.toString();
+
+          if (token != null) {
+            debugPrint('✅ [API] Token successfully extracted!');
+            return token;
+          } else {
+            debugPrint('⚠️ [API] Success was true, but NO TOKEN was found in the response.');
+          }
+        } else {
+          debugPrint('❌ [API] Server returned success: false. Message: ${data['message']}');
+        }
+      } else {
+        debugPrint('❌ [API] Server rejected request. Status: ${response.statusCode}');
       }
       return null;
     } catch (e) {
-      debugPrint('Verify OTP Error: $e');
+      debugPrint('🚨 [API] Verify OTP Crash: $e');
       return null;
     }
   }
+
 
   // --- UPDATED STEP 2 ---
   Future<bool> submitPhysicalAttributes(Map<String, dynamic> data, String token) async {
@@ -170,7 +200,35 @@ class ApiService {
     );
     return response.statusCode == 200;
   }
+// --- FETCH USER PROFILE ---
+  Future<Map<String, dynamic>?> fetchUserProfile(String token) async {
+    final url = Uri.parse('$baseUrl/auth/me');
 
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token', // <-- CRITICAL: Sends the token
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonResponse = jsonDecode(response.body);
+
+        if (jsonResponse['success'] == true) {
+          return jsonResponse['data']; // Returns { "first_name": "akash", "profile_image": null }
+        }
+      } else {
+        debugPrint('Profile Fetch Failed: ${response.statusCode}');
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Profile Fetch Error: $e');
+      return null;
+    }
+  }
   // --- UPDATED STEP 4 ---
   Future<bool> submitMedicalIntel(Map<String, dynamic> data, String token) async {
     final url = Uri.parse('$baseUrl/registration/step-4');
