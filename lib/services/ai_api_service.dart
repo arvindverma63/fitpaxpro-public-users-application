@@ -4,36 +4,105 @@ import 'package:http/http.dart' as http;
 import '../models/ai_models.dart';
 
 class AiApiService {
-  // Your computer's local network IP
   static const String baseUrl = 'http://192.168.1.16:8000';
+  static const String localAiUrl = 'http://192.168.1.17:1234/api/v1';
 
-  // ==========================================
-  // 1. CORE AI ENDPOINTS
-  // ==========================================
+  Future<ChatResponse?> sendMessage(
+      ChatRequest request, {
+        String? imageBase64,
+        List<Map<String, dynamic>>? history,
+      }) async {
+    final url = Uri.parse('$localAiUrl/chat');
 
-  Future<ChatResponse?> sendMessage(ChatRequest request) async {
-    final url = Uri.parse('$baseUrl/chat');
-    debugPrint('🤖 [AI Chat] Sending message...');
+    String finalPromptText = request.message;
+
+    if (history != null && history.isNotEmpty) {
+      String historyText = "Here is the recent chat history for context:\n";
+      final recentHistory = history.length > 4 ? history.sublist(history.length - 4) : history;
+
+      for (var msg in recentHistory) {
+        String role = msg['isUser'] == true ? "User" : "AI";
+        String text = msg['text'] ?? '';
+        if (text.length > 300) text = '${text.substring(0, 300)}... [Truncated]';
+        historyText += "$role: $text\n";
+      }
+      finalPromptText = "$historyText\nNow, respond to this new message from the User: ${request.message}";
+    }
+
+    dynamic inputPayload;
+
+    if (imageBase64 != null && imageBase64.isNotEmpty) {
+      inputPayload = [
+        {
+          "type": "text",
+          "content": finalPromptText
+        },
+        {
+          "type": "image",
+          "data_url": "data:image/jpeg;base64,$imageBase64"
+        }
+      ];
+    } else {
+      inputPayload = [
+        {
+          "type": "text",
+          "content": finalPromptText
+        }
+      ];
+    }
 
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-        body: jsonEncode(request.toJson()),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "model": "google/gemma-4-e2b",
+          "input": inputPayload,
+          "context_length": 8000,
+          "temperature": 0.7
+        }),
       );
 
       if (response.statusCode == 200) {
-        debugPrint('✅ [AI Chat] Success!');
-        return ChatResponse.fromJson(jsonDecode(response.body));
+        final data = jsonDecode(response.body);
+        String aiReply = "Sorry, I couldn't process the response.";
+
+        if (data['output'] != null && data['output'] is List) {
+          for (var item in data['output']) {
+            if (item['type'] == 'message') {
+              aiReply = item['content'] ?? '';
+              break;
+            }
+          }
+        }
+
+        aiReply = _cleanAiResponse(aiReply);
+
+        return ChatResponse(
+          ok: true,
+          kind: 'chat',
+          reply: aiReply,
+          exerciseExamples: null,
+          nutritionExamples: null,
+          suggestions: null,
+        );
       } else {
-        debugPrint('❌ [AI Chat] Server Error: ${response.statusCode} - ${response.body}');
+        debugPrint('❌ [Local AI] Error: ${response.statusCode} - ${response.body}');
         return null;
       }
     } catch (e) {
-      debugPrint('🚨 [AI Chat] Network Error: $e');
+      debugPrint('🚨 [Local AI] Network Error: $e');
       return null;
     }
   }
+
+  String _cleanAiResponse(String text) {
+    String cleanedText = text;
+    cleanedText = cleanedText.replaceAll(RegExp(r'<think>.*?</think>', dotAll: true), '');
+    cleanedText = cleanedText.replaceAll(RegExp(r'Thinking Process:.*?(?=\n\n|\Z)', dotAll: true), '');
+    cleanedText = cleanedText.replaceAll(RegExp(r'```thought.```', dotAll: true), '');
+        return cleanedText.trim();
+    }
 
   Future<Map<String, dynamic>?> generatePlan(String sessionId) async {
     final url = Uri.parse('$baseUrl/recommend');
@@ -58,10 +127,6 @@ class AiApiService {
       return null;
     }
   }
-
-  // ==========================================
-  // 2. USER MANAGEMENT & CONTEXT
-  // ==========================================
 
   Future<bool> syncUserProfile(String sessionId, Map<String, dynamic> profileData) async {
     final url = Uri.parse('$baseUrl/profile/$sessionId');
@@ -109,10 +174,6 @@ class AiApiService {
     }
   }
 
-  // ==========================================
-  // 3. KNOWLEDGE SEARCH (Discover Tab)
-  // ==========================================
-
   Future<List<dynamic>?> searchExercises({String? query, String? muscle, int limit = 20}) async {
     String urlString = '$baseUrl/exercises?limit=$limit';
     if (query != null && query.isNotEmpty) urlString += '&q=$query';
@@ -142,50 +203,6 @@ class AiApiService {
     } catch (e) {
       debugPrint('🚨 [AI Search] Nutrition Error: $e');
       return null;
-    }
-  }
-
-  // ==========================================
-  // 4. SYSTEM & MAINTENANCE
-  // ==========================================
-
-  Future<bool> checkHealth() async {
-    final url = Uri.parse('$baseUrl/health');
-    try {
-      final response = await http.get(url);
-      return response.statusCode == 200;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  Future<bool> submitFeedback(String rating, {String? name, String? reply, String? message}) async {
-    final url = Uri.parse('$baseUrl/feedback');
-    debugPrint('👍 [AI Feedback] Submitting: $rating');
-
-    try {
-      final body = {
-        "rating": rating,
-        if (name != null) "name": name,
-        if (reply != null) "reply": reply,
-        if (message != null) "message": message,
-      };
-
-      final response = await http.post(url, headers: {'Content-Type': 'application/json'}, body: jsonEncode(body));
-      return response.statusCode == 200;
-    } catch (e) {
-      debugPrint('🚨 [AI Feedback] Error: $e');
-      return false;
-    }
-  }
-
-  Future<bool> retrainKnowledgeBase() async {
-    final url = Uri.parse('$baseUrl/retrain');
-    try {
-      final response = await http.post(url);
-      return response.statusCode == 200;
-    } catch (e) {
-      return false;
     }
   }
 }

@@ -1,5 +1,7 @@
+import 'dart:io'; // <-- NEW: Required to read the local image file
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:markdown_widget/markdown_widget.dart';
 import '../../services/pdf_service.dart';
 import '../../services/ai_api_service.dart';
 import '../../theme/app_colors.dart';
@@ -20,6 +22,7 @@ class ChatMessageBubble extends StatelessWidget {
     final bool isPlan = message['isPlan'] ?? false;
     final List<dynamic> exercises = message['exercises'] ?? [];
     final List<dynamic> nutrition = message['nutrition'] ?? [];
+    final String? localImagePath = message['imagePath']; // <-- NEW: Grab the image path
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 24.0),
@@ -27,21 +30,26 @@ class ChatMessageBubble extends StatelessWidget {
         mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // AI AVATAR
           if (!isUser) ...[
             Container(
-              decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: AppColors.primaryLight.withOpacity(0.3), blurRadius: 8)]),
-              child: const CircleAvatar(radius: 14, backgroundColor: AppColors.primaryLight, child: Icon(Icons.auto_awesome, size: 14, color: Colors.white)),
+              decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: AppColors.primaryLight.withOpacity(0.3), blurRadius: 8)]
+              ),
+              child: const CircleAvatar(
+                  radius: 14,
+                  backgroundColor: AppColors.primaryLight,
+                  child: Icon(Icons.auto_awesome, size: 14, color: Colors.white)
+              ),
             ),
             const SizedBox(width: 12),
           ],
-
-          // MESSAGE CONTENT
           Flexible(
             child: Column(
               crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
-                // TEXT CONTENT
+
+                // --- CHAT BUBBLE (TEXT + USER IMAGE) ---
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
@@ -55,10 +63,53 @@ class ChatMessageBubble extends StatelessWidget {
                     ),
                     border: isUser ? null : Border.all(color: Colors.white10),
                   ),
-                  child: Text(message['text'], style: TextStyle(color: isUser ? Colors.white : AppColors.textMain, fontSize: 15, height: 1.4)),
+                  child: Column(
+                    crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                    children: [
+                      // --- NEW: DISPLAY USER ATTACHED IMAGE ---
+                      if (localImagePath != null && localImagePath.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(
+                              File(localImagePath),
+                              width: 200, // Constrain the image size in the chat
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                              const Icon(Icons.broken_image, color: Colors.white54, size: 40),
+                            ),
+                          ),
+                        ),
+
+                      // --- MARKDOWN TEXT ---
+                      if (message['text'] != null && message['text'].toString().isNotEmpty)
+                        MarkdownBlock(
+                          data: message['text'],
+                          config: MarkdownConfig(
+                            configs: [
+                              PConfig(textStyle: TextStyle(color: isUser ? Colors.white : AppColors.textMain, fontSize: 15, height: 1.4)),
+                              H1Config(style: TextStyle(color: isUser ? Colors.white : AppColors.primaryLight, fontSize: 22, fontWeight: FontWeight.bold)),
+                              H2Config(style: TextStyle(color: isUser ? Colors.white : AppColors.primaryLight, fontSize: 18, fontWeight: FontWeight.bold)),
+                              H3Config(style: TextStyle(color: isUser ? Colors.white : AppColors.primaryLight, fontSize: 16, fontWeight: FontWeight.bold)),
+                              TableConfig(
+                                headerStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                bodyStyle: const TextStyle(color: AppColors.textMain),
+                                border: TableBorder.all(color: Colors.white24, width: 1),
+                                wrapper: (tableWidget) => SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  physics: const BouncingScrollPhysics(),
+                                  child: tableWidget,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
 
-                // EXERCISE CAROUSEL
+                // --- EXERCISES CAROUSEL ---
                 if (exercises.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   const Text(" Recommended Exercises", style: TextStyle(color: AppColors.primaryLight, fontWeight: FontWeight.bold, fontSize: 12)),
@@ -107,7 +158,7 @@ class ChatMessageBubble extends StatelessWidget {
                   )
                 ],
 
-                // NUTRITION LIST
+                // --- NUTRITION TARGETS ---
                 if (nutrition.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   const Text(" Nutrition Targets", style: TextStyle(color: AppColors.primaryLight, fontWeight: FontWeight.bold, fontSize: 12)),
@@ -130,7 +181,7 @@ class ChatMessageBubble extends StatelessWidget {
                   )
                 ],
 
-                // PDF DOWNLOAD BUTTON
+                // --- EXPORT PDF BUTTON ---
                 if (isPlan) ...[
                   const SizedBox(height: 16),
                   SizedBox(
@@ -151,7 +202,6 @@ class ChatMessageBubble extends StatelessWidget {
               ],
             ),
           ),
-
           if (isUser) const SizedBox(width: 26),
         ],
       ),
