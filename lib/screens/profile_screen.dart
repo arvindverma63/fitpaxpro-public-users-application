@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/app_colors.dart';
 import '../services/api_service.dart';
 import '../services/theme_service.dart';
@@ -126,8 +127,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: CircleAvatar(
               radius: 35,
               backgroundColor: Colors.black26,
-              backgroundImage: _profileImageUrl != null ? NetworkImage(_profileImageUrl!) : null,
-              child: _profileImageUrl == null
+              backgroundImage: _profileImageUrl != null && _profileImageUrl!.isNotEmpty
+                  ? CachedNetworkImageProvider(
+                      _profileImageUrl!.startsWith('http')
+                          ? _profileImageUrl!
+                          : 'https://chocolate-viper-895188.hostingersite.com/storage/$_profileImageUrl',
+                    ) as ImageProvider
+                  : null,
+              child: (_profileImageUrl == null || _profileImageUrl!.isEmpty)
                   ? Icon(Icons.person_rounded, size: 35, color: AppColors.textMuted)
                   : null,
             ),

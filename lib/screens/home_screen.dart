@@ -3,6 +3,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/gym_model.dart';
 import '../models/banner_model.dart';
@@ -436,9 +437,18 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             child: CircleAvatar(
-              radius: 20, backgroundColor: AppColors.cardBg,
-              backgroundImage: _isLoggedIn && _profileImageUrl != null ? NetworkImage(_profileImageUrl!) : null,
-              child: (!_isLoggedIn || _profileImageUrl == null) ? Icon(Icons.person_outline_rounded, color: AppColors.textMuted) : null,
+              radius: 20,
+              backgroundColor: AppColors.cardBg,
+              backgroundImage: _isLoggedIn && _profileImageUrl != null && _profileImageUrl!.isNotEmpty
+                  ? CachedNetworkImageProvider(
+                      _profileImageUrl!.startsWith('http')
+                          ? _profileImageUrl!
+                          : 'https://chocolate-viper-895188.hostingersite.com/storage/$_profileImageUrl',
+                    ) as ImageProvider
+                  : null,
+              child: (!_isLoggedIn || _profileImageUrl == null || _profileImageUrl!.isEmpty)
+                  ? Icon(Icons.person_outline_rounded, color: AppColors.textMuted)
+                  : null,
             ),
           ),
           const SizedBox(width: 12),

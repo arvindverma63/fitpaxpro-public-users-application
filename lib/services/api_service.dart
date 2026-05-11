@@ -511,19 +511,49 @@ class ApiService {
     }
   }
 // --- UPDATE FULL USER PROFILE ---
-  Future<bool> updateProfile(Map<String, dynamic> profileData) async {
+  Future<bool> updateProfile(Map<String, dynamic> profileData, {String? imagePath}) async {
     final url = Uri.parse('$baseUrl/profile');
 
     try {
-      final response = await http.post(
-        url,
-        headers: await _getHeaders(),
-        body: jsonEncode(profileData),
-      );
+      final request = http.MultipartRequest('POST', url);
+      request.headers.addAll(await _getHeaders());
+
+      // Add all profile fields to the request
+      profileData.forEach((key, value) {
+        if (value != null) {
+          // Handle nested 'profile' data
+          if (value is Map) {
+            value.forEach((subKey, subValue) {
+              if (subValue != null) {
+                if (subValue is bool) {
+                  request.fields[subKey] = subValue ? '1' : '0';
+                } else {
+                  request.fields[subKey] = subValue.toString();
+                }
+              }
+            });
+          } else {
+            // Handle boolean values specifically for multipart (backend often expects 1/0)
+            if (value is bool) {
+              request.fields[key] = value ? '1' : '0';
+            } else {
+              request.fields[key] = value.toString();
+            }
+          }
+        }
+      });
+
+      // Add profile image if provided
+      if (imagePath != null && imagePath.isNotEmpty) {
+        request.files.add(await http.MultipartFile.fromPath('profile_image', imagePath));
+        debugPrint('📸 [API] Adding profile image to request: $imagePath');
+      }
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = jsonDecode(response.body);
-
         if (jsonResponse['success'] == true) {
           debugPrint('✅ [API] Profile updated successfully');
           return true;

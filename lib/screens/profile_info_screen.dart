@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/app_colors.dart';
 import '../services/api_service.dart';
 
@@ -45,6 +48,11 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  
+  // Image handling
+  final ImagePicker _picker = ImagePicker();
+  File? _imageFile;
+  String? _remoteImageUrl;
 
   @override
   void initState() {
@@ -89,6 +97,9 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
         _allergiesController.text = profile['allergies'] ?? '';
         _limitationsController.text = profile['physical_limitations'] ?? '';
 
+        // Image
+        _remoteImageUrl = data['profile_image'];
+
         _isLoading = false;
       });
     } else {
@@ -119,7 +130,10 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
       'is_public': _isPublic,
     };
 
-    final success = await _apiService.updateProfile(updateData);
+    final success = await _apiService.updateProfile(
+      updateData, 
+      imagePath: _imageFile?.path
+    );
 
     if (mounted) {
       setState(() => _isSaving = false);
@@ -183,6 +197,8 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildImageHeader(),
+                    const SizedBox(height: 32),
                     _buildSectionHeader('Account Information'),
                     const SizedBox(height: 16),
                     _buildTextField(label: 'Full Name', controller: _nameController, icon: Icons.person_outline_rounded),
@@ -352,5 +368,80 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
             : const Text('Save Details', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       ),
     );
+  }
+
+  Widget _buildImageHeader() {
+    return Center(
+      child: Stack(
+        children: [
+          Container(
+            width: 110,
+            height: 110,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.primaryLight, width: 3),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5)),
+              ],
+            ),
+            child: ClipOval(
+              child: _imageFile != null
+                  ? Image.file(_imageFile!, fit: BoxFit.cover)
+                  : _remoteImageUrl != null && _remoteImageUrl!.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: _remoteImageUrl!.startsWith('http') 
+                            ? _remoteImageUrl! 
+                            : 'https://chocolate-viper-895188.hostingersite.com/storage/$_remoteImageUrl',
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(color: AppColors.cardBg),
+                          errorWidget: (context, url, error) => _buildDefaultAvatar(),
+                        )
+                      : _buildDefaultAvatar(),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: GestureDetector(
+              onTap: _pickImage,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.scaffoldBg, width: 3),
+                ),
+                child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      color: AppColors.cardBg,
+      child: Icon(Icons.person_rounded, size: 50, color: AppColors.textMuted.withOpacity(0.5)),
+    );
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1000,
+        maxHeight: 1000,
+        imageQuality: 85,
+      );
+      if (pickedFile != null) {
+        setState(() {
+          _imageFile = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      debugPrint('🚨 [Profile] Error picking image: $e');
+    }
   }
 }
