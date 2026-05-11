@@ -79,9 +79,9 @@ class _GymCardState extends State<GymCard> {
                             Expanded(
                               child: Text(
                                 _capitalize(widget.gym.name),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
+                                style: TextStyle(
                                   fontSize: 16,
+                                  fontWeight: FontWeight.bold,
                                   color: AppColors.textMain,
                                 ),
                                 maxLines: 1,
@@ -95,7 +95,7 @@ class _GymCardState extends State<GymCard> {
                         const SizedBox(height: 6),
                         Text(
                           widget.gym.address,
-                          style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -109,9 +109,9 @@ class _GymCardState extends State<GymCard> {
                                 const SizedBox(width: 4),
                                 Text(
                                   widget.gym.rating > 0 ? widget.gym.rating.toStringAsFixed(1) : 'New',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
+                                  style: TextStyle(
                                     fontSize: 13,
+                                    fontWeight: FontWeight.bold,
                                     color: AppColors.textMain,
                                   ),
                                 ),
@@ -137,7 +137,7 @@ class _GymCardState extends State<GymCard> {
               child: _isExpanded
                   ? Container(
                 padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: AppColors.expandedBg,
                   borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
                 ),
@@ -151,9 +151,9 @@ class _GymCardState extends State<GymCard> {
                             color: AppColors.sponsoredBg,
                             borderRadius: BorderRadius.circular(8)
                         ),
-                        child: const Text(
-                            'Sponsored Result',
-                            style: TextStyle(color: AppColors.sponsoredText, fontSize: 11, fontWeight: FontWeight.bold)
+                        child: Text(
+                          'SPONSORED',
+                          style: TextStyle(color: AppColors.sponsoredText, fontSize: 11, fontWeight: FontWeight.bold)
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -187,8 +187,8 @@ class _GymCardState extends State<GymCard> {
         Expanded(
           child: Text(
               text,
-              style: const TextStyle(
-                fontSize: 13,
+              style: TextStyle(
+                fontSize: 14,
                 color: AppColors.expandedText,
                 fontWeight: FontWeight.w500,
               ),
@@ -205,7 +205,7 @@ class _GymCardState extends State<GymCard> {
       width: 110,
       height: 110,
       color: Colors.black26, // Darker placeholder for dark mode
-      child: const Icon(Icons.fitness_center_rounded, color: AppColors.textMuted),
+      child: Icon(Icons.fitness_center_rounded, color: AppColors.textMuted),
     );
   }
 

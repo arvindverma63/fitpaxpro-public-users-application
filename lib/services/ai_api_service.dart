@@ -1,18 +1,37 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/ai_models.dart';
+import 'api_service.dart';
 
 class AiApiService {
-  static const String baseUrl = 'http://192.168.1.16:8000';
-  static const String localAiUrl = 'http://192.168.1.17:1234/api/v1';
+  static const String defaultBaseUrl = 'http://192.168.1.16:8000';
+  static const String defaultLocalAiUrl = 'http://192.168.0.16:1234/api/v1';
+
+  static String baseUrl = defaultBaseUrl;
+  static String localAiUrl = defaultLocalAiUrl;
+
+  static Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+    baseUrl = prefs.getString('ai_base_url') ?? defaultBaseUrl;
+    localAiUrl = prefs.getString('ai_local_url') ?? defaultLocalAiUrl;
+  }
+
+  Future<Map<String, String>> _getUrls() async {
+    return {
+      'baseUrl': baseUrl,
+      'localAiUrl': localAiUrl,
+    };
+  }
 
   Future<ChatResponse?> sendMessage(
       ChatRequest request, {
         String? imageBase64,
         List<Map<String, dynamic>>? history,
       }) async {
-    final url = Uri.parse('$localAiUrl/chat');
+    final urls = await _getUrls();
+    final url = Uri.parse('${urls['localAiUrl']}/chat');
 
     String finalPromptText = request.message;
 
@@ -101,64 +120,105 @@ class AiApiService {
     cleanedText = cleanedText.replaceAll(RegExp(r'<think>.*?</think>', dotAll: true), '');
     cleanedText = cleanedText.replaceAll(RegExp(r'Thinking Process:.*?(?=\n\n|\Z)', dotAll: true), '');
     cleanedText = cleanedText.replaceAll(RegExp(r'```thought.```', dotAll: true), '');
-        return cleanedText.trim();
+    return cleanedText.trim();
+  }
+
+  // Helper to extract JSON from AI response if it contains extra text
+  Map<String, dynamic>? _extractJson(String text) {
+    try {
+      final start = text.indexOf('{');
+      final end = text.lastIndexOf('}');
+      if (start != -1 && end != -1) {
+        final jsonPart = text.substring(start, end + 1);
+        return jsonDecode(jsonPart);
+      }
+    } catch (e) {
+      debugPrint('⚠️ [AI Plan] JSON extraction failed: $e');
     }
+    return null;
+  }
 
   Future<Map<String, dynamic>?> generatePlan(String sessionId) async {
-    final url = Uri.parse('$baseUrl/recommend');
-    debugPrint('🏋️‍♂️ [AI Plan] Requesting plan for: $sessionId');
-
+    debugPrint('🏋️‍♂️ [AI Plan] Fetching Live Profile for Structured AI Generation...');
+    
     try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"session_id": sessionId}),
-      );
-
-      if (response.statusCode == 200) {
-        debugPrint('✅ [AI Plan] Plan generated successfully!');
-        return jsonDecode(response.body);
-      } else {
-        debugPrint('❌ [AI Plan] Error: ${response.statusCode}');
+      // 1. Fetch live profile data
+      final profileData = await ApiService().getFullProfile();
+      if (profileData == null) {
+        debugPrint('❌ [AI Plan] Could not fetch profile data');
         return null;
       }
-    } catch (e) {
-      debugPrint('🚨 [AI Plan] Network Error: $e');
-      return null;
-    }
-  }
 
-  Future<bool> syncUserProfile(String sessionId, Map<String, dynamic> profileData) async {
-    final url = Uri.parse('$baseUrl/profile/$sessionId');
-    debugPrint('🔄 [AI Sync] Syncing profile for: $sessionId');
+      final profile = profileData['profile'] ?? {};
+      
+      // 2. Construct a prompt requesting STRICT JSON
+      final String prompt = """
+Generate a personalized fitness and nutrition plan for a user with the following profile:
+- Goal: ${profile['goal_type'] ?? 'General fitness'}
+- Diet: ${profile['diet_type'] ?? 'Balanced'}
+- Gender: ${profile['gender'] ?? 'Not specified'}
+- Weight: ${profile['current_weight'] ?? 'N/A'} kg
+- Height: ${profile['height'] ?? 'N/A'} cm
 
-    try {
-      final response = await http.post(url, headers: {'Content-Type': 'application/json'}, body: jsonEncode(profileData));
-      if (response.statusCode == 200) {
-        debugPrint('✅ [AI Sync] Profile updated in AI memory.');
-        return true;
+YOU MUST RESPOND ONLY WITH A VALID JSON OBJECT. NO MARKDOWN, NO EXPLANATION.
+The JSON must follow this exact structure:
+{
+  "reply": "A concise overview and motivation for the user.",
+  "exercises": [
+    {"name": "Exercise Name", "muscles": "Muscles", "instruction": "Step-by-step guidance"}
+  ],
+  "nutrition": [
+    {"name": "Food Item", "calories": "Value", "protein": "Value", "carbohydrate": "Value", "fat": "Value"}
+  ],
+  "suggestions": ["Tip 1", "Tip 2"]
+}
+""";
+
+      debugPrint('🏋️‍♂️ [AI Plan] Requesting Structured AI Plan...');
+
+      // 3. Use the local AI
+      final aiResponse = await sendMessage(
+        ChatRequest(message: prompt, sessionId: sessionId),
+      );
+
+      if (aiResponse != null && aiResponse.ok) {
+        // Try to parse the JSON
+        final structuredData = _extractJson(aiResponse.reply);
+        
+        if (structuredData != null) {
+          debugPrint('✅ [AI Plan] AI successfully generated structured JSON!');
+          return {
+            "ok": true,
+            "reply": structuredData['reply'] ?? aiResponse.reply,
+            "weekly_guidance": "Personalized based on your goals.",
+            "meal_guidance": "Tailored to your ${profile['diet_type']} diet.",
+            "exercises": structuredData['exercises'] ?? [],
+            "nutrition": structuredData['nutrition'] ?? [],
+            "suggestions": structuredData['suggestions'] ?? ["Stay hydrated", "Track sleep"]
+          };
+        } else {
+          debugPrint('⚠️ [AI Plan] AI response was not JSON, falling back to text.');
+          return {
+            "ok": true,
+            "reply": aiResponse.reply,
+            "weekly_guidance": "General guidance based on your profile.",
+            "meal_guidance": "General diet recommendations.",
+            "exercises": [], 
+            "nutrition": [],
+            "suggestions": ["Try again for a structured plan"]
+          };
+        }
       }
-      return false;
-    } catch (e) {
-      debugPrint('🚨 [AI Sync] Error: $e');
-      return false;
-    }
-  }
-
-  Future<Map<String, dynamic>?> getUserProfile(String sessionId) async {
-    final url = Uri.parse('$baseUrl/profile/$sessionId');
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) return jsonDecode(response.body);
       return null;
     } catch (e) {
-      debugPrint('🚨 [AI Profile] Fetch Error: $e');
+      debugPrint('🚨 [AI Plan] Error in structured plan generation: $e');
       return null;
     }
   }
 
   Future<List<dynamic>?> getChatHistory(String sessionId) async {
-    final url = Uri.parse('$baseUrl/history/$sessionId');
+    final urls = await _getUrls();
+    final url = Uri.parse('${urls['baseUrl']}/history/$sessionId');
     debugPrint('📜 [AI History] Fetching history for: $sessionId');
 
     try {
@@ -175,7 +235,8 @@ class AiApiService {
   }
 
   Future<List<dynamic>?> searchExercises({String? query, String? muscle, int limit = 20}) async {
-    String urlString = '$baseUrl/exercises?limit=$limit';
+    final urls = await _getUrls();
+    String urlString = '${urls['baseUrl']}/exercises?limit=$limit';
     if (query != null && query.isNotEmpty) urlString += '&q=$query';
     if (muscle != null && muscle.isNotEmpty) urlString += '&muscle=$muscle';
 
@@ -193,7 +254,8 @@ class AiApiService {
   }
 
   Future<List<dynamic>?> searchNutrition(String query, {int limit = 20}) async {
-    final url = Uri.parse('$baseUrl/nutrition?q=$query&limit=$limit');
+    final urls = await _getUrls();
+    final url = Uri.parse('${urls['baseUrl']}/nutrition?q=$query&limit=$limit');
     debugPrint('🍎 [AI Search] Searching nutrition: $query');
 
     try {

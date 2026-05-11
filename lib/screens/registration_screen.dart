@@ -5,7 +5,8 @@ import '../services/ai_api_service.dart';
 import '../theme/app_colors.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'main_screen.dart'; // <-- CHANGED: Import MainScreen instead of HomeScreen
+import 'main_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -128,6 +129,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           final token = await _apiService.verifyOtp(email, otp);
           if (token != null) {
             _authToken = token;
+            
+            // --- NEW: Save the token to the device ---
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('auth_token', token);
+            // -----------------------------------------
+
             success = true;
             debugPrint("✅ [API] OTP Verified! Auth Token stored: ${_authToken?.substring(0, 10)}...");
           } else {
@@ -173,20 +180,40 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         if (success) {
           // --- AI SYNC LOGIC ---
           try {
-            final aiService = AiApiService();
-            await aiService.syncUserProfile(email, {
-              "gender": gender,
-              "goal": goalType,
-              "diet_type": dietType,
-              "weight": double.tryParse(weight),
-              "height": double.tryParse(height),
-              "medical_history": medicalConditions,
-            });
-            debugPrint("✅ [AI] Profile Synced Successfully");
-          } catch (e) {
-            debugPrint("⚠️ [AI] Sync Failed: $e");
-          }
+            final apiService = ApiService();
 
+            // Parse weight and height safely
+            double? parsedWeight = double.tryParse(weight);
+            double? parsedHeight = double.tryParse(height);
+
+            // Map UI data to match your Laravel API parameters exactly
+            Map<String, dynamic> updatePayload = {
+              "gender": gender,
+              "goal_type": goalType,
+              "diet_type": dietType,
+            };
+
+            // Add optional fields only if they have valid data
+            if (parsedWeight != null) updatePayload["current_weight"] = parsedWeight;
+            if (parsedHeight != null) updatePayload["height"] = parsedHeight;
+            if (medicalConditions.trim().isNotEmpty) updatePayload["medical_conditions"] = medicalConditions;
+
+            // 1. Send data to your Main Backend API
+            bool success = await apiService.updateProfile(updatePayload);
+
+            if (success) {
+              debugPrint("✅ [API] Profile Updated Successfully");
+
+              // 2. (Optional) Log measurements history to keep track of weight changes over time
+              if (parsedWeight != null) {
+                await apiService.logMeasurements({"weight": parsedWeight});
+              }
+            } else {
+              debugPrint("⚠️ [API] Profile Update Failed (Returned False)");
+            }
+          } catch (e) {
+            debugPrint("🚨 [API] Update Crash/Network Error: $e");
+          }
           debugPrint("🎉 [Registration] Complete! Navigating to MainScreen.");
           if (!mounted) return;
 
@@ -223,7 +250,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         elevation: 0,
         leading: _currentStep > 0
             ? IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textMain, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textMain, size: 20),
           onPressed: () {
             _pageController.previousPage(duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic);
             setState(() => _currentStep--);
@@ -264,9 +291,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppColors.textMain, letterSpacing: -0.5)),
-          const SizedBox(height: 8),
-          Text(subtitle, style: const TextStyle(fontSize: 15, color: AppColors.textMuted)),
+          Text(title, style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppColors.textMain, letterSpacing: -0.5)),
+          const SizedBox(height: 12),
+          Text(subtitle, style: TextStyle(fontSize: 15, color: AppColors.textMuted)),
           const SizedBox(height: 35),
           child,
           const SizedBox(height: 50),
@@ -286,7 +313,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         style: TextStyle(color: enabled ? AppColors.textMain : AppColors.textMuted),
         decoration: InputDecoration(
           hintText: label,
-          hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+          hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
           prefixIcon: Icon(icon, color: AppColors.textMuted, size: 20),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -343,7 +370,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Gender', style: TextStyle(color: AppColors.textMuted)),
+          Text('Gender', style: TextStyle(color: AppColors.textMuted)),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -362,7 +389,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           ),
           _buildTextField('Target Weight (kg)', Icons.track_changes, (v) => targetWeight = v, keyboardType: TextInputType.number),
           const SizedBox(height: 15),
-          const Text('Blood Group', style: TextStyle(color: AppColors.textMuted)),
+          Text('Blood Group', style: TextStyle(color: AppColors.textMuted)),
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -392,7 +419,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         const SizedBox(height: 12),
         _buildChoiceChip('Muscle Gain', goalType == 'muscle_gain', () => setState(() => goalType = 'muscle_gain')),
         const SizedBox(height: 25),
-        const Align(alignment: Alignment.centerLeft, child: Text('Diet Preference', style: TextStyle(color: AppColors.textMuted))),
+        Align(alignment: Alignment.centerLeft, child: Text('Diet Preference', style: TextStyle(color: AppColors.textMuted))),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -428,7 +455,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             backgroundColor: AppColors.cardBg,
             backgroundImage: profileImagePath != null ? FileImage(File(profileImagePath!)) : null,
             child: profileImagePath == null
-                ? const Icon(Icons.camera_alt_outlined, size: 40, color: AppColors.textMuted)
+                ? Icon(Icons.camera_alt_outlined, size: 40, color: AppColors.textMuted)
                 : null,
           ),
         ),
@@ -440,7 +467,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         const SizedBox(height: 40),
         SwitchListTile(
           title: const Text('Public Profile', style: TextStyle(color: Colors.white)),
-          subtitle: const Text('Allow others to see your progress', style: TextStyle(color: AppColors.textMuted)),
+          subtitle: Text('Allow others to see your progress', style: TextStyle(color: AppColors.textMuted)),
           value: isPublic,
           activeColor: AppColors.primaryLight,
           onChanged: (v) => setState(() => isPublic = v),
@@ -467,7 +494,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Widget _buildBottomActionBar() {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(color: AppColors.cardBg, border: Border(top: BorderSide(color: Colors.white10))),
+      decoration: BoxDecoration(color: AppColors.cardBg, border: const Border(top: BorderSide(color: Colors.white10))),
       child: SizedBox(
         width: double.infinity,
         height: 56,

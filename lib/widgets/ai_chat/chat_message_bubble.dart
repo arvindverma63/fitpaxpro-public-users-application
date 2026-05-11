@@ -61,7 +61,7 @@ class ChatMessageBubble extends StatelessWidget {
                       bottomLeft: Radius.circular(isUser ? 16 : 4),
                       bottomRight: Radius.circular(isUser ? 4 : 16),
                     ),
-                    border: isUser ? null : Border.all(color: Colors.white10),
+                    border: isUser ? null : Border.all(color: AppColors.borderColor),
                   ),
                   child: Column(
                     crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -93,9 +93,9 @@ class ChatMessageBubble extends StatelessWidget {
                               H2Config(style: TextStyle(color: isUser ? Colors.white : AppColors.primaryLight, fontSize: 18, fontWeight: FontWeight.bold)),
                               H3Config(style: TextStyle(color: isUser ? Colors.white : AppColors.primaryLight, fontSize: 16, fontWeight: FontWeight.bold)),
                               TableConfig(
-                                headerStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                bodyStyle: const TextStyle(color: AppColors.textMain),
-                                border: TableBorder.all(color: Colors.white24, width: 1),
+                                headerStyle: TextStyle(color: isUser ? Colors.white : AppColors.textMain, fontWeight: FontWeight.bold),
+                                bodyStyle: TextStyle(color: isUser ? Colors.white : AppColors.textMain),
+                                border: TableBorder.all(color: AppColors.borderColor, width: 1),
                                 wrapper: (tableWidget) => SingleChildScrollView(
                                   scrollDirection: Axis.horizontal,
                                   physics: const BouncingScrollPhysics(),
@@ -124,7 +124,7 @@ class ChatMessageBubble extends StatelessWidget {
                           return Container(
                               width: 140,
                               margin: const EdgeInsets.only(right: 12),
-                              decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+                              decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.borderColor)),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -144,9 +144,9 @@ class ChatMessageBubble extends StatelessWidget {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(ex['name'].toString().toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        Text(ex['name'].toString().toUpperCase(), style: TextStyle(color: AppColors.textMain, fontSize: 11, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
                                         const SizedBox(height: 2),
-                                        Text('Target: ${ex['muscles'] ?? 'Full Body'}', style: const TextStyle(color: AppColors.textMuted, fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        Text('Target: ${ex['muscles'] ?? 'Full Body'}', style: TextStyle(color: AppColors.textMuted, fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
                                       ],
                                     ),
                                   )
@@ -164,13 +164,13 @@ class ChatMessageBubble extends StatelessWidget {
                   const Text(" Nutrition Targets", style: TextStyle(color: AppColors.primaryLight, fontWeight: FontWeight.bold, fontSize: 12)),
                   const SizedBox(height: 8),
                   Container(
-                    decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+                    decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.borderColor)),
                     child: Column(
                       children: nutrition.map((n) => ListTile(
                         dense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                        title: Text(n['name'].toString(), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                        subtitle: Text('P: ${n['protein']}g • C: ${n['carbohydrate']}g • F: ${n['fat']}g', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                        title: Text(n['name'].toString(), style: TextStyle(color: AppColors.textMain, fontSize: 13, fontWeight: FontWeight.w600)),
+                        subtitle: Text('P: ${n['protein']}g • C: ${n['carbohydrate']}g • F: ${n['fat']}g', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
                         trailing: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(color: AppColors.accent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),

@@ -172,7 +172,19 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              children: [Shimmer.fromColors(baseColor: Colors.white10, highlightColor: Colors.white24, child: Container(width: 280, decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(20))))],
+              children: [
+                Shimmer.fromColors(
+                  baseColor: AppColors.borderColor,
+                  highlightColor: AppColors.scaffoldBg,
+                  child: Container(
+                    width: 280,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ),
+              ],
             ),
           );
         } else if (snapshot.hasError) {
@@ -261,11 +273,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Container(
                       height: 60, width: 60,
-                      decoration: BoxDecoration(color: AppColors.cardBg, shape: BoxShape.circle, border: Border.all(color: Colors.white10)),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardBg,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.borderColor),
+                      ),
                       child: Icon(iconData, color: AppColors.primaryLight, size: 28),
                     ),
                     const SizedBox(height: 8),
-                    Text(_capitalize(cat.name), style: const TextStyle(color: AppColors.textMain, fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text(_capitalize(cat.name), style: TextStyle(color: AppColors.textMain, fontSize: 12, fontWeight: FontWeight.w600)),
                   ],
                 ),
               );
@@ -292,13 +308,24 @@ class _HomeScreenState extends State<HomeScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               itemCount: 3,
-              itemBuilder: (ctx, i) => Shimmer.fromColors(baseColor: Colors.white10, highlightColor: Colors.white24, child: Container(width: 240, margin: const EdgeInsets.only(right: 16), decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(20)))),
+              itemBuilder: (ctx, i) => Shimmer.fromColors(
+                baseColor: AppColors.borderColor,
+                highlightColor: AppColors.scaffoldBg,
+                child: Container(
+                  width: 240,
+                  margin: const EdgeInsets.only(right: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
             ),
           );
         } else if (snapshot.hasError) {
           return Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Text("Featured Error: ${snapshot.error}", style: const TextStyle(color: Colors.redAccent, fontSize: 12)));
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Text("No featured gyms available right now.", style: TextStyle(color: AppColors.textMuted)));
+          return Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Text("No featured gyms available right now.", style: TextStyle(color: AppColors.textMuted)));
         }
 
         final gyms = snapshot.data!;
@@ -315,7 +342,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GymDetailsScreen(gymId: gym.id))),
                 child: Container(
                   width: 240, margin: const EdgeInsets.only(right: 16),
-                  decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white10)),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.borderColor),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -331,12 +362,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Expanded(child: Text(gym.name, style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                                Row(children: [const Icon(Icons.star_rounded, color: AppColors.accent, size: 14), const SizedBox(width: 2), Text(gym.rating > 0 ? gym.rating.toStringAsFixed(1) : 'New', style: const TextStyle(color: AppColors.textMain, fontSize: 12, fontWeight: FontWeight.bold))]),
+                                Expanded(child: Text(gym.name, style: TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                Row(children: [Icon(Icons.star_rounded, color: AppColors.accent, size: 14), const SizedBox(width: 2), Text(gym.rating > 0 ? gym.rating.toStringAsFixed(1) : 'New', style: TextStyle(color: AppColors.textMain, fontSize: 12, fontWeight: FontWeight.bold))]),
                               ],
                             ),
                             const SizedBox(height: 4),
-                            Text(gym.address, style: const TextStyle(color: AppColors.textMuted, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            Text(gym.address, style: TextStyle(color: AppColors.textMuted, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
                           ],
                         ),
                       )
@@ -358,12 +389,23 @@ class _HomeScreenState extends State<HomeScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return ListView.builder(
             shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), padding: const EdgeInsets.symmetric(horizontal: 20), itemCount: 4,
-            itemBuilder: (ctx, i) => Shimmer.fromColors(baseColor: Colors.white10, highlightColor: Colors.white24, child: Container(height: 110, margin: const EdgeInsets.only(bottom: 16), decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(20)))),
+            itemBuilder: (ctx, i) => Shimmer.fromColors(
+              baseColor: AppColors.borderColor,
+              highlightColor: AppColors.scaffoldBg,
+              child: Container(
+                height: 110,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
           );
         } else if (snapshot.hasError) {
           return Center(child: Padding(padding: const EdgeInsets.all(40.0), child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.redAccent))));
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Padding(padding: EdgeInsets.all(40.0), child: Text("No gyms found in your area.", style: TextStyle(color: AppColors.textMuted))));
+          return Center(child: Padding(padding: const EdgeInsets.all(40.0), child: Text("No gyms found in your area.", style: TextStyle(color: AppColors.textMuted))));
         }
 
         final gyms = snapshot.data!;
@@ -386,11 +428,17 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _isLoggedIn ? AppColors.primaryLight.withOpacity(0.5) : Colors.white10, width: 2)),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: _isLoggedIn ? AppColors.primaryLight.withOpacity(0.5) : AppColors.borderColor,
+                width: 2,
+              ),
+            ),
             child: CircleAvatar(
               radius: 20, backgroundColor: AppColors.cardBg,
               backgroundImage: _isLoggedIn && _profileImageUrl != null ? NetworkImage(_profileImageUrl!) : null,
-              child: (!_isLoggedIn || _profileImageUrl == null) ? const Icon(Icons.person_outline_rounded, color: AppColors.textMuted) : null,
+              child: (!_isLoggedIn || _profileImageUrl == null) ? Icon(Icons.person_outline_rounded, color: AppColors.textMuted) : null,
             ),
           ),
           const SizedBox(width: 12),
@@ -404,7 +452,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         : _isLoadingProfile
                         ? 'Loading profile...'
                         : 'Good Morning, $_firstName 👋',
-                    style: const TextStyle(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w500)
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w500)
                 ),
                 const SizedBox(height: 2),
                 GestureDetector(
@@ -415,8 +463,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(width: 4),
                       Expanded(
                         child: _isLoadingLocation
-                            ? const Text('Locating...', style: TextStyle(color: AppColors.textMuted, fontSize: 14))
-                            : Text(_currentLocation, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textMain), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ? Text('Locating...', style: TextStyle(color: AppColors.textMuted, fontSize: 14))
+                            : Text(_currentLocation, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textMain), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       if (!_isLoadingLocation) Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textMuted.withOpacity(0.8), size: 16),
                     ],
@@ -434,7 +482,15 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.cardBg, shape: BoxShape.circle, border: Border.all(color: Colors.white10)), child: const Icon(Icons.notifications_outlined, color: AppColors.textMain, size: 20)),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBg,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.borderColor),
+                  ),
+                  child: Icon(Icons.notifications_outlined, color: AppColors.textMain, size: 20),
+                ),
                 Positioned(top: 8, right: 10, child: Container(width: 8, height: 8, decoration: BoxDecoration(color: AppColors.primaryLight, shape: BoxShape.circle, border: Border.all(color: AppColors.cardBg, width: 2)))),
               ],
             ),
@@ -451,8 +507,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSearchBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
-      child: const TextField(
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: TextField(
         style: TextStyle(color: AppColors.textMain),
         decoration: InputDecoration(hintText: 'Search gyms, classes, or trainers...', hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14), border: InputBorder.none, icon: Icon(Icons.search_rounded, color: AppColors.textMuted)),
       ),
@@ -463,7 +523,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.textMain, letterSpacing: -0.5)),
+        Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.textMain, letterSpacing: -0.5)),
         if (showSeeAll) const Text('See All', style: TextStyle(color: AppColors.primaryLight, fontSize: 13, fontWeight: FontWeight.bold)),
       ],
     );

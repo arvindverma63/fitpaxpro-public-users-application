@@ -3,12 +3,20 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 class PdfService {
+  // Helper to remove emojis and unsupported Unicode characters for standard PDF fonts
+  static String _sanitizeText(String text) {
+    if (text.isEmpty) return "";
+    // Allow more characters but still exclude most Unicode that causes crashes in standard PDF fonts
+    return text.replaceAll(RegExp(r'[^\x00-\x7F]'), '');
+  }
+
   static Future<void> generateAndSharePlan(Map<String, dynamic> messageData) async {
     final pdf = pw.Document();
 
     final exercises = messageData['exercises'] as List<dynamic>? ?? [];
     final nutrition = messageData['nutrition'] as List<dynamic>? ?? [];
-    final text = messageData['text'] ?? '';
+    final String rawText = messageData['text'] ?? '';
+    final String sanitizedSummary = _sanitizeText(rawText);
 
     // Define Premium Brand Colors
     final PdfColor primaryColor = PdfColor.fromHex('#111827'); // Deep Slate
@@ -39,10 +47,10 @@ class PdfService {
                   children: [
                     pw.Text('FITPAX PRO', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: primaryColor, letterSpacing: 1.5)),
                     pw.SizedBox(height: 4),
-                    pw.Text('MASTER PLAN', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: accentColor, letterSpacing: 2)),
+                    pw.Text('PREMIUM AI MASTER PLAN', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: accentColor, letterSpacing: 2)),
                   ],
                 ),
-                pw.Text('Generated: $formattedDate', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                pw.Text('Gen ID: ${now.millisecondsSinceEpoch.toString().substring(7)} | $formattedDate', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
               ],
             ),
           );
@@ -57,8 +65,8 @@ class PdfService {
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                pw.Text('Powered by FitPax AI', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600, fontWeight: pw.FontWeight.bold)),
-                pw.Text('Page ${context.pageNumber} of ${context.pagesCount}', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                pw.Text('Official FitPax AI Optimization Document', style: pw.TextStyle(fontSize: 9, color: PdfColors.grey600, fontWeight: pw.FontWeight.bold)),
+                pw.Text('Page ${context.pageNumber} / ${context.pagesCount}', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
               ],
             ),
           );
@@ -66,107 +74,127 @@ class PdfService {
 
         // --- MAIN CONTENT ---
         build: (pw.Context context) {
+          // Split the summary into paragraphs to allow MultiPage to break across pages
+          final List<String> paragraphs = sanitizedSummary.split('\n').where((p) => p.trim().isNotEmpty).toList();
+
           return [
 
             // AI SUMMARY BLOCK
-            if (text.isNotEmpty) ...[
-              pw.Container(
-                padding: const pw.EdgeInsets.all(16),
-                decoration: pw.BoxDecoration(
-                  color: lightBg,
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                  border: pw.Border(left: pw.BorderSide(color: accentColor, width: 4)),
-                ),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('COACH\'S SUMMARY', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: primaryColor)),
-                    pw.SizedBox(height: 8),
-                    pw.Text(text, style: pw.TextStyle(fontSize: 11, lineSpacing: 1.5, color: PdfColor.fromHex('#374151'))),
-                  ],
-                ),
+            if (sanitizedSummary.isNotEmpty) ...[
+              pw.Row(
+                children: [
+                  pw.Container(width: 10, height: 10, decoration: pw.BoxDecoration(color: accentColor, shape: pw.BoxShape.circle)),
+                  pw.SizedBox(width: 8),
+                  pw.Text('COACH\'S STRATEGY', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: primaryColor)),
+                ]
               ),
-              pw.SizedBox(height: 32),
+              pw.SizedBox(height: 8),
+              pw.Divider(color: PdfColors.grey200, thickness: 1),
+              pw.SizedBox(height: 12),
+              
+              ...paragraphs.map((p) => pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 10),
+                child: pw.Text(p.trim(), style: pw.TextStyle(fontSize: 11, lineSpacing: 1.6, color: PdfColor.fromHex('#374151'))),
+              )),
+              
+              pw.SizedBox(height: 24),
             ],
 
             // EXERCISES SECTION
             if (exercises.isNotEmpty) ...[
-              pw.Text('WORKOUT ROUTINE', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: primaryColor, letterSpacing: 1)),
-              pw.SizedBox(height: 16),
-              pw.ListView.builder(
-                  itemCount: exercises.length,
-                  itemBuilder: (context, index) {
-                    final ex = exercises[index];
-                    return pw.Container(
-                        margin: const pw.EdgeInsets.only(bottom: 16),
-                        padding: const pw.EdgeInsets.all(16),
-                        decoration: pw.BoxDecoration(
-                          border: pw.Border.all(color: PdfColors.grey300),
-                          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
-                        ),
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Row(
-                              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                              children: [
-                                pw.Expanded(
-                                  child: pw.Text(ex['name'].toString().toUpperCase(), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14, color: primaryColor)),
-                                ),
-                                pw.Container(
-                                  padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: pw.BoxDecoration(color: accentColor, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4))),
-                                  child: pw.Text('Target: ${ex['muscles']}', style: pw.TextStyle(fontSize: 9, color: accentColor, fontWeight: pw.FontWeight.bold)),
-                                ),
-                              ],
-                            ),
-                            pw.SizedBox(height: 8),
-                            pw.Text(ex['instruction'] ?? 'Perform the exercise with proper form.', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey800, lineSpacing: 1.3)),
-                            pw.SizedBox(height: 12),
-
-                            // PRINTABLE WORKOUT TRACKER (Sets & Reps Checkboxes)
-                            pw.Divider(color: PdfColors.grey200),
-                            pw.SizedBox(height: 8),
-                            pw.Row(
-                              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                              children: List.generate(4, (i) => pw.Row(
-                                  children: [
-                                    pw.Container(width: 12, height: 12, decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey400), shape: pw.BoxShape.circle)),
-                                    pw.SizedBox(width: 4),
-                                    pw.Text('Set ${i + 1} (    reps)', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
-                                  ]
-                              )),
-                            )
-                          ],
-                        )
-                    );
-                  }
+              pw.SizedBox(height: 12),
+              pw.Row(
+                children: [
+                  pw.Container(width: 10, height: 10, decoration: pw.BoxDecoration(color: accentColor, shape: pw.BoxShape.circle)),
+                  pw.SizedBox(width: 8),
+                  pw.Text('WORKOUT PROTOCOL', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: primaryColor)),
+                ]
               ),
-              pw.SizedBox(height: 32),
+              pw.SizedBox(height: 16),
+              ...exercises.map((ex) {
+                final String name = _sanitizeText(ex['name'].toString().toUpperCase());
+                final String target = _sanitizeText(ex['muscles'] ?? 'General');
+                final String instruction = _sanitizeText(ex['instruction'] ?? 'Follow form.');
+
+                return pw.Container(
+                    margin: const pw.EdgeInsets.only(bottom: 20),
+                    padding: const pw.EdgeInsets.all(12),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.grey200, width: 1.5),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                      color: PdfColors.white,
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Expanded(
+                              child: pw.Text(name, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12, color: primaryColor)),
+                            ),
+                            pw.Container(
+                              padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: pw.BoxDecoration(color: primaryColor, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4))),
+                              child: pw.Text(target, style: pw.TextStyle(fontSize: 8, color: PdfColors.white, fontWeight: pw.FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                        pw.SizedBox(height: 8),
+                        pw.Text(instruction, style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700, lineSpacing: 1.3)),
+                        pw.SizedBox(height: 12),
+
+                        // SETS TRACKER
+                        pw.Row(
+                          children: [
+                            pw.Text('TRACKER:', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: accentColor)),
+                            pw.SizedBox(width: 12),
+                            ...List.generate(4, (i) => pw.Row(
+                              children: [
+                                pw.Container(width: 10, height: 10, decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey400), shape: pw.BoxShape.circle)),
+                                pw.SizedBox(width: 4),
+                                pw.Text('S${i+1}', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500)),
+                                pw.SizedBox(width: 12),
+                              ]
+                            )),
+                          ]
+                        )
+                      ],
+                    )
+                );
+              }),
+              pw.SizedBox(height: 24),
             ],
 
             // NUTRITION SECTION
             if (nutrition.isNotEmpty) ...[
-              pw.Text('NUTRITION TARGETS', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: primaryColor, letterSpacing: 1)),
+              pw.SizedBox(height: 12),
+              pw.Row(
+                children: [
+                  pw.Container(width: 10, height: 10, decoration: pw.BoxDecoration(color: accentColor, shape: pw.BoxShape.circle)),
+                  pw.SizedBox(width: 8),
+                  pw.Text('NUTRITION GUIDELINES', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: primaryColor)),
+                ]
+              ),
               pw.SizedBox(height: 16),
               pw.TableHelper.fromTextArray(
                 context: context,
                 cellAlignment: pw.Alignment.centerLeft,
                 headerAlignment: pw.Alignment.centerLeft,
-                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 11),
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10),
                 headerDecoration: pw.BoxDecoration(color: primaryColor),
-                cellStyle: const pw.TextStyle(fontSize: 10),
-                cellPadding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
-                border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+                cellStyle: const pw.TextStyle(fontSize: 9),
+                cellPadding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey50),
+                border: pw.TableBorder.all(color: PdfColors.grey200, width: 1),
                 data: [
-                  ['Food Item', 'Calories', 'Protein', 'Carbs', 'Fat'],
+                  ['ITEM', 'CAL', 'PRO', 'CARB', 'FAT'],
                   ...nutrition.map((n) => [
-                    n['name'].toString(),
-                    '${n['calories']} kcal',
-                    '${n['protein']} g',
-                    '${n['carbohydrate'] ?? '0'} g',
-                    '${n['fat'] ?? '0'} g',
+                    _sanitizeText(n['name'].toString()),
+                    '${n['calories']}',
+                    '${n['protein']}g',
+                    '${n['carbohydrate'] ?? '0'}g',
+                    '${n['fat'] ?? '0'}g',
                   ]),
                 ],
               ),

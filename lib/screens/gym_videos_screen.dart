@@ -129,14 +129,14 @@ class _GymVideosScreenState extends State<GymVideosScreen> {
                     children: [
                       Text(
                         _videos[_currentPlayingIndex].title,
-                        style: const TextStyle(color: AppColors.textMain, fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: AppColors.textMain, fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(Icons.location_on_rounded, color: AppColors.textMuted, size: 14),
+                          Icon(Icons.location_on_rounded, color: AppColors.textMuted, size: 14),
                           const SizedBox(width: 4),
-                          Text(widget.gym.address, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                          Text(widget.gym.address, style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
                         ],
                       ),
                     ],
@@ -169,7 +169,7 @@ class _GymVideosScreenState extends State<GymVideosScreen> {
         decoration: BoxDecoration(
           color: isPlaying ? AppColors.primary.withOpacity(0.1) : AppColors.cardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isPlaying ? AppColors.primaryLight : Colors.white10),
+          border: Border.all(color: isPlaying ? AppColors.primaryLight : AppColors.borderColor),
         ),
         child: Row(
           children: [
@@ -191,7 +191,7 @@ class _GymVideosScreenState extends State<GymVideosScreen> {
                   const SizedBox(height: 4),
                   Text(
                     isPlaying ? 'Now Playing' : 'Tap to watch',
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                   ),
                 ],
               ),

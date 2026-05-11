@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/ai_api_service.dart';
+import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 
 class AiProfileSheet extends StatefulWidget {
@@ -17,16 +18,25 @@ class AiProfileSheet extends StatefulWidget {
 }
 
 class _AiProfileSheetState extends State<AiProfileSheet> {
+  // Services
   final AiApiService _aiService = AiApiService();
+  final ApiService _apiService = ApiService();
 
+  // UI State
   bool _isFetching = true;
   bool _isSaving = false;
 
   // Profile State mapping to FastAPI Schema
   String _goal = 'maintenance';
-  String _diet = 'balanced';
+  String _diet = 'veg'; // Changed default from 'balanced' to 'veg'
   String _gender = 'male';
 
+  // Valid Dropdown Options (Updated with new enums)
+  final List<String> _validGoals = ['weight_loss', 'muscle_gain', 'maintenance'];
+  final List<String> _validDiets = ['veg', 'non_veg', 'eggitarian', 'vegan', 'keto', 'paleo'];
+  final List<String> _validGenders = ['male', 'female', 'other'];
+
+  // Text Controllers
   final TextEditingController _weightController = TextEditingController();
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _medicalController = TextEditingController();
@@ -45,25 +55,37 @@ class _AiProfileSheetState extends State<AiProfileSheet> {
     super.dispose();
   }
 
-  // --- HITS: GET /profile/{session_id} ---
+  // --- HITS: GET /profile (Main Backend) ---
   Future<void> _fetchProfile() async {
-    final profileData = await _aiService.getUserProfile(widget.sessionId);
+    // Fetches the comprehensive profile.
+    // Notice how clean it is now since ApiService handles the SharedPrefs token internally!
+    final fullProfileResponse = await _apiService.getFullProfile();
+
     if (mounted) {
       setState(() {
-        if (profileData != null) {
-          _goal = profileData['goal'] ?? 'maintenance';
-          _diet = profileData['diet_type'] ?? 'balanced';
-          _gender = profileData['gender'] ?? 'male';
-          _weightController.text = profileData['weight']?.toString() ?? '';
-          _heightController.text = profileData['height']?.toString() ?? '';
-          _medicalController.text = profileData['medical_history'] ?? 'None';
+        if (fullProfileResponse != null && fullProfileResponse['profile'] != null) {
+          final profile = fullProfileResponse['profile'];
+
+          // Safely assign dropdown values
+          String apiGoal = profile['goal_type'] ?? 'maintenance';
+          _goal = _validGoals.contains(apiGoal) ? apiGoal : 'maintenance';
+
+          String apiDiet = profile['diet_type'] ?? 'balanced';
+          _diet = _validDiets.contains(apiDiet) ? apiDiet : 'balanced';
+
+          String apiGender = profile['gender'] ?? 'male';
+          _gender = _validGenders.contains(apiGender) ? apiGender : 'male';
+
+          // Assign text fields
+          _weightController.text = profile['current_weight']?.toString() ?? '';
+          _heightController.text = profile['height']?.toString() ?? '';
+          _medicalController.text = profile['medical_conditions'] ?? '';
         }
         _isFetching = false;
       });
     }
   }
-
-  // --- HITS: POST /profile/{session_id} ---
+// --- HITS: POST /profile (Main Backend) ---
   Future<void> _saveProfile() async {
     setState(() => _isSaving = true);
 
@@ -71,27 +93,50 @@ class _AiProfileSheetState extends State<AiProfileSheet> {
     double? weight = double.tryParse(_weightController.text.trim());
     double? height = double.tryParse(_heightController.text.trim());
 
-    // Send to FastAPI
-    bool success = await _aiService.syncUserProfile(widget.sessionId, {
-      "goal": _goal,
+    // Map UI data to match your Laravel API parameters exactly
+    Map<String, dynamic> updatePayload = {
+      "goal_type": _goal,
       "diet_type": _diet,
       "gender": _gender,
-      "weight": weight,
-      "height": height,
-      "medical_history": _medicalController.text.trim().isEmpty ? 'None' : _medicalController.text.trim(),
-    });
+    };
+
+    if (weight != null) updatePayload["current_weight"] = weight;
+    if (height != null) updatePayload["height"] = height;
+
+    // Add medical history if not empty
+    String medicalText = _medicalController.text.trim();
+    if (medicalText.isNotEmpty) {
+      updatePayload["medical_conditions"] = medicalText;
+    }
+
+    // 1. Send data to your Main Backend API
+    bool success = await _apiService.updateProfile(updatePayload);
+
+    // 2. (Optional) Log measurements history as well
+    if (success && weight != null) {
+      await _apiService.logMeasurements({"weight": weight});
+    }
 
     if (mounted) {
-      Navigator.pop(context);
+      setState(() => _isSaving = false);
+      Navigator.pop(context); // Close the bottom sheet
+
+      // Show result to user
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(success ? 'AI Profile Updated Successfully!' : 'Failed to update profile.', style: const TextStyle(fontWeight: FontWeight.bold)),
+            content: Text(
+                success
+                    ? 'Profile Updated Successfully!'
+                    : 'Failed to update profile. Please try again.',
+                style: const TextStyle(fontWeight: FontWeight.bold)
+            ),
             backgroundColor: success ? Colors.green : Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           )
       );
+
       if (success) {
-        // Trigger the chat message in the main screen
+        // Trigger the chat message update in the main screen
         widget.onProfileUpdated(_goal, _diet);
       }
     }
@@ -99,12 +144,13 @@ class _AiProfileSheetState extends State<AiProfileSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // Wrap in a GestureDetector to dismiss keyboard when tapping outside
+    // GestureDetector dismisses the keyboard when tapping outside of a text field
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom, // Moves up when keyboard opens
+          // This ensures the bottom sheet moves up when the keyboard appears
+          bottom: MediaQuery.of(context).viewInsets.bottom,
           left: 24, right: 24, top: 24,
         ),
         child: SingleChildScrollView(
@@ -113,13 +159,20 @@ class _AiProfileSheetState extends State<AiProfileSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)))),
+              // Handlebar at the top
+              Center(
+                  child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(color: AppColors.borderColor, borderRadius: BorderRadius.circular(2))
+                  )
+              ),
               const SizedBox(height: 24),
-              const Text('AI Optimization Profile', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              Text('AI Optimization Profile', style: TextStyle(color: AppColors.textMain, fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              const Text('The AI uses these metrics to accurately calculate your calories and suggest safe exercises.', style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.4)),
+              Text('The AI uses these metrics to accurately calculate your calories and suggest safe exercises.', style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.4)),
               const SizedBox(height: 24),
 
+              // Show loader while fetching data
               if (_isFetching)
                 const Center(child: Padding(padding: EdgeInsets.all(40.0), child: CircularProgressIndicator(color: AppColors.primaryLight)))
               else ...[
@@ -134,8 +187,8 @@ class _AiProfileSheetState extends State<AiProfileSheet> {
                           const Text('Goal', style: TextStyle(color: AppColors.primaryLight, fontSize: 12, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 8),
                           _buildDropdown(
-                            value: _goal.isEmpty ? 'maintenance' : _goal,
-                            items: ['weight_loss', 'muscle_gain', 'maintenance'],
+                            value: _goal,
+                            items: _validGoals,
                             onChanged: (v) => setState(() => _goal = v!),
                           ),
                         ],
@@ -149,8 +202,8 @@ class _AiProfileSheetState extends State<AiProfileSheet> {
                           const Text('Gender', style: TextStyle(color: AppColors.primaryLight, fontSize: 12, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 8),
                           _buildDropdown(
-                            value: _gender.isEmpty ? 'male' : _gender.toLowerCase(),
-                            items: ['male', 'female', 'other'],
+                            value: _gender,
+                            items: _validGenders,
                             onChanged: (v) => setState(() => _gender = v!),
                           ),
                         ],
@@ -164,8 +217,8 @@ class _AiProfileSheetState extends State<AiProfileSheet> {
                 const Text('Diet Preference', style: TextStyle(color: AppColors.primaryLight, fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 _buildDropdown(
-                  value: _diet.isEmpty ? 'balanced' : _diet,
-                  items: ['veg', 'vegan', 'keto', 'balanced', 'non_veg'],
+                  value: _diet,
+                  items: _validDiets,
                   onChanged: (v) => setState(() => _diet = v!),
                 ),
                 const SizedBox(height: 16),
@@ -210,14 +263,17 @@ class _AiProfileSheetState extends State<AiProfileSheet> {
                   width: double.infinity,
                   height: 54,
                   child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                    ),
                     onPressed: _isSaving ? null : _saveProfile,
                     child: _isSaving
                         ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
                         : const Text('Update AI Brain', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 24), // Extra padding at the bottom
               ]
             ],
           ),
@@ -226,39 +282,48 @@ class _AiProfileSheetState extends State<AiProfileSheet> {
     );
   }
 
-  // Helper for Dropdowns
+  // --- UI HELPERS ---
+
   Widget _buildDropdown({required String value, required List<String> items, required Function(String?) onChanged}) {
-    // Ensure the value exists in the list to prevent Flutter crash
+    // Extra safety measure: Fallback if the initial value isn't in the list
     if (!items.contains(value)) value = items.first;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+      decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderColor)
+      ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
           isExpanded: true,
           dropdownColor: AppColors.cardBg,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textMuted),
-          items: items.map((v) => DropdownMenuItem(value: v, child: Text(v.replaceAll('_', ' ').toUpperCase()))).toList(),
+          style: TextStyle(color: AppColors.textMain, fontSize: 14),
+          icon: Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textMuted),
+          // Replaces underscores with spaces and capitalizes for UI display
+          items: items.map((v) => DropdownMenuItem(value: v, child: Text(v.replaceAll('_', ' ').toUpperCase(), style: TextStyle(color: AppColors.textMain)))).toList(),
           onChanged: onChanged,
         ),
       ),
     );
   }
 
-  // Helper for TextFields
   Widget _buildTextField(TextEditingController controller, String hint, {required bool isNumber}) {
     return Container(
-      decoration: BoxDecoration(color: AppColors.cardBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+      decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderColor)
+      ),
       child: TextField(
         controller: controller,
         keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
+        style: TextStyle(color: AppColors.textMain, fontSize: 14),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+          hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),

@@ -73,7 +73,7 @@ class _AnimatedLoginPromptState extends State<AnimatedLoginPrompt> with SingleTi
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Unlock Full Access',
                       style: TextStyle(
                         color: AppColors.textMain,
@@ -82,7 +82,7 @@ class _AnimatedLoginPromptState extends State<AnimatedLoginPrompt> with SingleTi
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
+                    Text(
                       'Log in to book gyms, view pricing, and save favorites.',
                       style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.4),
                     ),

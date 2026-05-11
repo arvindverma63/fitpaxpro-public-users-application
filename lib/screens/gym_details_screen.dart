@@ -37,9 +37,9 @@ class _GymDetailsScreenState extends State<GymDetailsScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: AppColors.primaryLight));
           } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+            return Center(child: Text('Error: ${snapshot.error}', style: TextStyle(color: AppColors.textMain)));
           } else if (!snapshot.hasData) {
-            return const Center(child: Text('No data found.', style: TextStyle(color: Colors.white)));
+            return Center(child: Text('No data found.', style: TextStyle(color: AppColors.textMain)));
           }
 
           final gym = snapshot.data!;
@@ -66,7 +66,7 @@ class _GymDetailsScreenState extends State<GymDetailsScreen> {
                             const SizedBox(height: 8),
                             Text(
                               gym.description,
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.5),
+                              style: TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.5),
                             ),
                             const SizedBox(height: 24),
 
@@ -77,7 +77,7 @@ class _GymDetailsScreenState extends State<GymDetailsScreen> {
                             const SizedBox(height: 8),
                             Text(
                               gym.description,
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.5),
+                              style: TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.5),
                             ),
                             const SizedBox(height: 24),
                             _buildContactAndInfoCard(gym),
@@ -156,7 +156,7 @@ class _GymDetailsScreenState extends State<GymDetailsScreen> {
                   const SizedBox(height: 12),
                   Text(
                     'Watch ${gym.youtubeLinks.length} Video${gym.youtubeLinks.length > 1 ? 's' : ''}',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                   )
                 ],
               ),
@@ -213,7 +213,7 @@ class _GymDetailsScreenState extends State<GymDetailsScreen> {
         const SizedBox(height: 10),
         Text(
           _capitalize(gym.name),
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.textMain, height: 1.2),
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.textMain, height: 1.2),
         ),
       ],
     );
@@ -253,8 +253,8 @@ class _GymDetailsScreenState extends State<GymDetailsScreen> {
         children: [
           Icon(icon, color: AppColors.primaryLight, size: 20),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(color: AppColors.textMain, fontSize: 14, fontWeight: FontWeight.bold)),
-          Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          Text(value, style: TextStyle(color: AppColors.textMain, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(label, style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
         ],
       ),
     );
@@ -280,7 +280,7 @@ class _GymDetailsScreenState extends State<GymDetailsScreen> {
       style: ElevatedButton.styleFrom(
         backgroundColor: bgColor,
         padding: const EdgeInsets.symmetric(vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.white10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: AppColors.borderColor)),
         elevation: 0,
       ),
     );
@@ -319,9 +319,9 @@ class _GymDetailsScreenState extends State<GymDetailsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                Text(title, style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                 const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(color: AppColors.textMain, fontSize: 14, fontWeight: FontWeight.w500)),
+                Text(subtitle, style: TextStyle(color: AppColors.textMain, fontSize: 14, fontWeight: FontWeight.w500)),
               ],
             ),
           ),
@@ -368,7 +368,7 @@ class _GymDetailsScreenState extends State<GymDetailsScreen> {
     );
   }
   Widget _buildSectionTitle(String title) {
-    return Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textMain));
+    return Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textMain));
   }
 
   String _capitalize(String text) {

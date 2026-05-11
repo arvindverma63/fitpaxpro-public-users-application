@@ -25,7 +25,7 @@ class _PricingBottomSheetState extends State<PricingBottomSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.scaffoldBg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -44,8 +44,8 @@ class _PricingBottomSheetState extends State<PricingBottomSheet> {
               ),
             ),
           ),
-          const Text(
-            'Membership Plans',
+          Text(
+            'Memberships & Plans',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textMain),
           ),
           const SizedBox(height: 16),
@@ -56,17 +56,17 @@ class _PricingBottomSheetState extends State<PricingBottomSheet> {
               future: _futurePlans,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Padding(
+                  return Padding(
                     padding: EdgeInsets.all(40.0),
                     child: CircularProgressIndicator(color: AppColors.primaryLight),
                   );
                 } else if (snapshot.hasError) {
                   return Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white54)),
+                    padding: EdgeInsets.all(24.0),
+                    child: Text('Error: ${snapshot.error}', style: TextStyle(color: Colors.white54)),
                   );
                 } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Padding(
+                  return Padding(
                     padding: EdgeInsets.all(40.0),
                     child: Text('No pricing plans available.', style: TextStyle(color: AppColors.textMuted)),
                   );
@@ -75,8 +75,8 @@ class _PricingBottomSheetState extends State<PricingBottomSheet> {
                 final plans = snapshot.data!;
                 return ListView.builder(
                   shrinkWrap: true,
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.only(left: 20, right: 20, bottom: 40),
+                  physics: BouncingScrollPhysics(),
+                  padding: EdgeInsets.only(left: 20, right: 20, bottom: 40),
                   itemCount: plans.length,
                   itemBuilder: (context, index) {
                     return _buildPlanCard(plans[index]);
@@ -96,14 +96,14 @@ class _PricingBottomSheetState extends State<PricingBottomSheet> {
     final hasDiscount = plan.offerPrice > 0 && plan.offerPrice < plan.price;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.cardBg,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.primary.withOpacity(0.5), width: 1.5),
         boxShadow: [
-          BoxShadow(color: AppColors.primary.withOpacity(0.08), blurRadius: 16, offset: const Offset(0, 8)),
+          BoxShadow(color: AppColors.primary.withOpacity(0.08), blurRadius: 16, offset: Offset(0, 8)),
         ],
       ),
       child: Column(
@@ -119,12 +119,12 @@ class _PricingBottomSheetState extends State<PricingBottomSheet> {
                   children: [
                     Text(
                       plan.name.toUpperCase(),
-                      style: const TextStyle(color: AppColors.primaryLight, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1),
+                      style: TextStyle(color: AppColors.primaryLight, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       plan.tagline.isNotEmpty ? plan.tagline : '${plan.durationMonths} Months Plan',
-                      style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold, fontSize: 18),
+                      style: TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold, fontSize: 18),
                     ),
                   ],
                 ),
@@ -135,21 +135,21 @@ class _PricingBottomSheetState extends State<PricingBottomSheet> {
                   if (hasDiscount)
                     Text(
                       '₹${plan.price.toStringAsFixed(0)}',
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 14, decoration: TextDecoration.lineThrough),
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 14, decoration: TextDecoration.lineThrough),
                     ),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      const Text('₹', style: TextStyle(color: AppColors.textMain, fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text('₹', style: TextStyle(color: AppColors.textMain, fontSize: 16, fontWeight: FontWeight.bold)),
                       Text(
                         displayPrice.toStringAsFixed(0),
-                        style: const TextStyle(color: AppColors.textMain, fontSize: 28, fontWeight: FontWeight.w900, height: 1),
+                        style: TextStyle(color: AppColors.textMain, fontSize: 28, fontWeight: FontWeight.w900, height: 1),
                       ),
                     ],
                   ),
                   Text(
                     '/${plan.billingCycle}',
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                   ),
                 ],
               )

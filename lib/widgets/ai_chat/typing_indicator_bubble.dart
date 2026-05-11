@@ -48,7 +48,7 @@ class _TypingIndicatorBubbleState extends State<TypingIndicatorBubble> with Sing
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
               color: AppColors.cardBg,
-              border: Border.all(color: Colors.white10),
+              border: Border.all(color: AppColors.borderColor),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),

@@ -27,9 +27,9 @@ class ChatInputBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.only(left: 12, right: 8, top: 12, bottom: 24),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
           color: AppColors.cardBg,
-          border: Border(top: BorderSide(color: Colors.white10)),
+          border: Border(top: BorderSide(color: AppColors.borderColor)),
           boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -4))]
       ),
       child: Column(
@@ -57,19 +57,19 @@ class ChatInputBar extends StatelessWidget {
           Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.image_outlined, color: AppColors.textMuted),
+                icon: Icon(Icons.image_outlined, color: AppColors.textMuted),
                 onPressed: isLoading ? null : onPickImage,
               ),
               Expanded(
                 child: Container(
-                  decoration: BoxDecoration(color: AppColors.scaffoldBg, borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white10)),
+                  decoration: BoxDecoration(color: AppColors.scaffoldBg, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.borderColor)),
                   child: TextField(
                     controller: controller,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: AppColors.textMain),
                     minLines: 1, maxLines: 4,
                     decoration: InputDecoration(
                         hintText: ChatTranslations.uiStrings[selectedLanguage]!['hint'],
-                        hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+                        hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12)
                     ),

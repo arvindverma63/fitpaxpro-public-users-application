@@ -42,25 +42,25 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
         PopupMenuButton<String>(
-          icon: const Icon(Icons.language_rounded, color: AppColors.textMain),
+          icon: Icon(Icons.language_rounded, color: AppColors.textMain),
           color: AppColors.cardBg,
           onSelected: onLanguageChanged,
           itemBuilder: (context) => ChatTranslations.uiStrings.keys.map((lang) =>
               PopupMenuItem(
                   value: lang,
                   child: Text(lang, style: TextStyle(
-                      color: selectedLanguage == lang ? AppColors.primaryLight : Colors.white,
+                      color: selectedLanguage == lang ? AppColors.primaryLight : AppColors.textMain,
                       fontWeight: selectedLanguage == lang ? FontWeight.bold : FontWeight.normal
                   ))
               )
           ).toList(),
         ),
         IconButton(
-          icon: const Icon(Icons.tune_rounded, color: AppColors.textMain),
+          icon: Icon(Icons.tune_rounded, color: AppColors.textMain),
           onPressed: onOpenProfile,
         ),
         PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert_rounded, color: AppColors.textMuted),
+          icon: Icon(Icons.more_vert_rounded, color: AppColors.textMuted),
           color: AppColors.cardBg,
           onSelected: (value) { if (value == 'clear') onClearChat(); },
           itemBuilder: (context) => [

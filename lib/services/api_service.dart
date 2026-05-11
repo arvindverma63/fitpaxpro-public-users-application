@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
-import 'package:http/http.dart' as http;import '../models/banner_model.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';import '../models/banner_model.dart';
 
 import '../models/category_model.dart';
 import '../models/gym_model.dart';
@@ -10,7 +11,12 @@ import '../models/comment_model.dart';
 
 class ApiService {
   // Set up the Base URL
-  static const String baseUrl = 'https://chocolate-viper-895188.hostingersite.com/api/user-app';
+  static String baseUrl = 'https://chocolate-viper-895188.hostingersite.com/api/user-app';
+
+  static Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+    baseUrl = prefs.getString('main_api_url') ?? 'https://chocolate-viper-895188.hostingersite.com/api/user-app';
+  }
 // Helper to build headers with an optional token
   Map<String, String> _headers([String? token]) {
     return {
@@ -363,11 +369,11 @@ class ApiService {
   }
 
   Future<bool> toggleLike(String mediaId) async {
-    final url = Uri.parse('$baseUrl/gym/interaction/like');
+    final url = Uri.parse('$baseUrl/interaction/like');
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getHeaders(),
         body: jsonEncode({
           'likeable_id': mediaId,
           'likeable_type': 'media' // or 'video', depending on your backend enum
@@ -381,9 +387,9 @@ class ApiService {
   }
 
   Future<List<VideoComment>> fetchComments(String mediaId) async {
-    final url = Uri.parse('$baseUrl/gym/interaction/comments?commentable_id=$mediaId&commentable_type=media');
+    final url = Uri.parse('$baseUrl/interaction/comments?commentable_id=$mediaId&commentable_type=media');
     try {
-      final response = await http.get(url, headers: {'accept': 'application/json'});
+      final response = await http.get(url, headers: await _getHeaders());
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
         final List<dynamic> data = jsonResponse['data'] ?? [];
@@ -397,11 +403,11 @@ class ApiService {
   }
 
   Future<bool> addComment(String mediaId, String content) async {
-    final url = Uri.parse('$baseUrl/gym/interaction/comment');
+    final url = Uri.parse('$baseUrl/interaction/comment');
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: await _getHeaders(),
         body: jsonEncode({
           'commentable_id': mediaId,
           'commentable_type': 'media',
@@ -419,7 +425,7 @@ class ApiService {
   Future<List<GymVideo>> fetchAllVideos() async {
     final url = Uri.parse('$baseUrl/gym/videos'); // No gym_id filter
     try {
-      final response = await http.get(url, headers: {'accept': 'application/json'});
+      final response = await http.get(url, headers: await _getHeaders());
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
         final List<dynamic> data = jsonResponse['data'] ?? [];
@@ -430,6 +436,148 @@ class ApiService {
       throw Exception('Network error: $e');
     }
   }
+// --- HELPER TO GET HEADERS WITH TOKEN FROM STORAGE ---
+  Future<Map<String, String>> _getHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? token = prefs.getString('auth_token');
 
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  // --- LOG PROFILE MEASUREMENTS ---
+  // Token is now retrieved automatically from SharedPreferences
+  Future<bool> logMeasurements(Map<String, dynamic> measurementData) async {
+    final url = Uri.parse('$baseUrl/profile/measurements');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: await _getHeaders(), // Await the async headers
+        body: jsonEncode(measurementData),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonResponse = jsonDecode(response.body);
+
+        if (jsonResponse['success'] == true) {
+          debugPrint('✅ [API] Measurements logged successfully');
+          return true;
+        } else {
+          debugPrint('❌ [API] Failed to log measurements: ${jsonResponse['message']}');
+          return false;
+        }
+      } else {
+        debugPrint('❌ [API] Server error logging measurements. Status: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('🚨 [API] Network error logging measurements: $e');
+      return false;
+    }
+  }
+
+  // --- FETCH FULL USER PROFILE ---
+  // Removed token parameter; handled internally via _getHeaders()
+  Future<Map<String, dynamic>?> getFullProfile() async {
+    final url = Uri.parse('$baseUrl/profile');
+
+    try {
+      final response = await http.get(
+        url,
+        headers: await _getHeaders(), // Await the async headers
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonResponse = jsonDecode(response.body);
+
+        if (jsonResponse['success'] == true) {
+          debugPrint('✅ [API] Full profile fetched successfully');
+          return jsonResponse['data'];
+        } else {
+          debugPrint('❌ [API] API returned success: false when fetching full profile.');
+          return null;
+        }
+      } else {
+        debugPrint('❌ [API] Failed to load full profile. Status Code: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('🚨 [API] Network error fetching full profile: $e');
+      return null;
+    }
+  }
+// --- UPDATE FULL USER PROFILE ---
+  Future<bool> updateProfile(Map<String, dynamic> profileData) async {
+    final url = Uri.parse('$baseUrl/profile');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: await _getHeaders(),
+        body: jsonEncode(profileData),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonResponse = jsonDecode(response.body);
+
+        if (jsonResponse['success'] == true) {
+          debugPrint('✅ [API] Profile updated successfully');
+          return true;
+        } else {
+          debugPrint('❌ [API] Failed to update profile: ${jsonResponse['message']}');
+          return false;
+        }
+      } else {
+        debugPrint('❌ [API] Server error updating profile. Status: ${response.statusCode}');
+        debugPrint('❌ [API] Body: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('🚨 [API] Network error updating profile: $e');
+      return false;
+    }
+  }
+
+  Future<List<dynamic>> fetchExercises({
+    String? search,
+    String? category,
+    String? muscleGroup,
+    String? bodyPart,
+    String? equipment,
+    String? difficulty,
+  }) async {
+    final queryParams = {
+      'active_only': 'true',
+      if (search != null && search.isNotEmpty) 'search': search,
+      if (category != null && category != 'All') 'category': category,
+      if (muscleGroup != null && muscleGroup != 'All') 'muscle_group': muscleGroup,
+      if (bodyPart != null && bodyPart != 'All') 'body_part': bodyPart,
+      if (equipment != null && equipment != 'All') 'equipment': equipment,
+      if (difficulty != null && difficulty != 'All') 'difficulty': difficulty,
+      'sort_by': 'exercise_name',
+      'sort_direction': 'asc',
+      'per_page': '100',
+    };
+
+    final uri = Uri.parse('$baseUrl/exercises').replace(queryParameters: queryParams);
+    
+    try {
+      final response = await http.get(uri, headers: {'accept': 'application/json'});
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        if (jsonResponse['success'] == true) {
+          return jsonResponse['data'] ?? [];
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint('🚨 [API] fetchExercises Error: $e');
+      return [];
+    }
+  }
 
 }

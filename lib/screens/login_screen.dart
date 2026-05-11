@@ -135,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 32),
 
                 // Greeting
-                const Text(
+                Text(
                   'Welcome Back',
                   style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppColors.textMain, letterSpacing: -0.5),
                 ),
@@ -144,7 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   _otpSent
                       ? 'We have sent a 6-digit verification code to your email.'
                       : 'Enter your email to log into your account and manage your fitness journey.',
-                  style: const TextStyle(fontSize: 15, color: AppColors.textMuted, height: 1.5),
+                  style: TextStyle(fontSize: 15, color: AppColors.textMuted, height: 1.5),
                 ),
                 const SizedBox(height: 48),
 
@@ -160,7 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     keyboardType: TextInputType.emailAddress,
                     enabled: !_otpSent,
                     style: TextStyle(color: _otpSent ? AppColors.textMuted : AppColors.textMain),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Email Address',
                       hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 15),
                       prefixIcon: Icon(Icons.email_outlined, color: AppColors.textMuted, size: 20),
@@ -182,8 +182,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: TextField(
                       controller: _otpController,
                       keyboardType: TextInputType.number,
-                      style: const TextStyle(color: AppColors.textMain),
-                      decoration: const InputDecoration(
+                      style: TextStyle(color: AppColors.textMain),
+                      decoration: InputDecoration(
                         hintText: 'Enter 6-Digit OTP',
                         hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 15),
                         prefixIcon: Icon(Icons.lock_clock_outlined, color: AppColors.textMuted, size: 20),
@@ -244,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text("Don't have an account?", style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+                    Text("Don't have an account?", style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
                     TextButton(
                       onPressed: () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const RegistrationScreen()));

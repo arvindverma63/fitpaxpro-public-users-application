@@ -31,23 +31,21 @@ class _SingleVideoPlayerScreenState extends State<SingleVideoPlayerScreen> {
     super.initState();
     _videoId = _extractVideoId(widget.video.url);
 
-    // 1. Initialize Player
-    _controller = YoutubePlayerController(
+    // 1. Initialize Player with the ID immediately if available
+    _controller = YoutubePlayerController.fromVideoId(
+      videoId: _videoId ?? '',
+      autoPlay: true,
       params: const YoutubePlayerParams(
         showControls: true,
         showFullscreenButton: true,
         mute: false,
-        origin: 'https://www.youtube.com',
+        enableJavaScript: true,
       ),
     );
 
-    // 2. Load Video with Delay (Fixes setSize error)
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (_videoId != null && mounted) {
-        _controller.loadVideoById(videoId: _videoId!);
-        _fetchLiveMetadata();
-      }
-    });
+    if (_videoId != null) {
+      _fetchLiveMetadata();
+    }
   }
 
   // Fetches the real Title and Description from YouTube
@@ -70,11 +68,15 @@ class _SingleVideoPlayerScreenState extends State<SingleVideoPlayerScreen> {
   }
 
   String? _extractVideoId(String url) {
+    if (url.isEmpty) return null;
     try {
-      final cleanUrl = url.split('?').first;
-      final RegExp regExp = RegExp(r'.*(?:youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*');
-      final match = regExp.firstMatch(cleanUrl);
-      return (match != null && match.groupCount >= 1) ? match.group(1) : null;
+      // Improved robust extraction
+      final RegExp regExp = RegExp(
+        r'(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})',
+        caseSensitive: false,
+      );
+      final match = regExp.firstMatch(url);
+      return match?.group(1);
     } catch (e) {
       return null;
     }
@@ -92,20 +94,29 @@ class _SingleVideoPlayerScreenState extends State<SingleVideoPlayerScreen> {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.scaffoldBg, // Changed from black for consistency
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textMain, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
+        title: Text('Video Player', style: TextStyle(color: AppColors.textMain, fontSize: 16)),
       ),
       body: Column(
         children: [
           // 1. VIDEO PLAYER
-          SizedBox(
-            width: double.infinity,
-            child: YoutubePlayer(controller: _controller, backgroundColor: Colors.black),
-          ),
+          if (_videoId != null)
+            SizedBox(
+              width: double.infinity,
+              child: YoutubePlayer(controller: _controller, backgroundColor: Colors.black),
+            )
+          else
+            Container(
+              height: 200,
+              width: double.infinity,
+              color: Colors.black12,
+              child: const Center(child: Text("Invalid Video ID", style: TextStyle(color: Colors.red))),
+            ),
 
           // 2. LIVE DATA SECTION
           Expanded(
@@ -117,23 +128,23 @@ class _SingleVideoPlayerScreenState extends State<SingleVideoPlayerScreen> {
                   // Title (Live or Fallback)
                   Text(
                     _liveTitle ?? widget.video.title,
-                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: AppColors.textMain, fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
 
                   // View Count & Gym Info
                   Row(
                     children: [
-                      const Icon(Icons.remove_red_eye, color: AppColors.textMuted, size: 16),
+                      Icon(Icons.remove_red_eye, color: AppColors.textMuted, size: 16),
                       const SizedBox(width: 6),
                       Text(
                         _isLoadingMetadata ? 'Loading views...' : '$_liveViews Views',
-                        style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                       ),
                       const SizedBox(width: 20),
-                      const Icon(Icons.fitness_center, color: AppColors.primaryLight, size: 16),
+                      Icon(Icons.fitness_center, color: AppColors.primaryLight, size: 16),
                       const SizedBox(width: 6),
-                      Text(widget.video.gymName, style: const TextStyle(color: AppColors.primaryLight, fontSize: 13, fontWeight: FontWeight.bold)),
+                      Text(widget.video.gymName, style: TextStyle(color: AppColors.primaryLight, fontSize: 13, fontWeight: FontWeight.bold)),
                     ],
                   ),
 
@@ -146,18 +157,18 @@ class _SingleVideoPlayerScreenState extends State<SingleVideoPlayerScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.cardBg,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white10),
+                      border: Border.all(color: AppColors.borderColor),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Description', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        Text('Description', style: TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 10),
                         Text(
                           _isLoadingMetadata
                               ? 'Fetching description...'
                               : (_liveDescription?.isNotEmpty == true ? _liveDescription! : 'No description provided.'),
-                          style: const TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.5),
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.5),
                         ),
                       ],
                     ),
@@ -169,8 +180,8 @@ class _SingleVideoPlayerScreenState extends State<SingleVideoPlayerScreen> {
                   Center(
                     child: TextButton.icon(
                       onPressed: () => launchUrl(Uri.parse(widget.video.url), mode: LaunchMode.externalApplication),
-                      icon: const Icon(Icons.open_in_new, size: 16, color: AppColors.textMuted),
-                      label: const Text('Open in YouTube', style: TextStyle(color: AppColors.textMuted)),
+                      icon: Icon(Icons.open_in_new, size: 16, color: AppColors.textMuted),
+                      label: Text('Open in YouTube', style: TextStyle(color: AppColors.textMuted)),
                     ),
                   )
                 ],
@@ -181,4 +192,4 @@ class _SingleVideoPlayerScreenState extends State<SingleVideoPlayerScreen> {
       ),
     );
   }
-}
+}
